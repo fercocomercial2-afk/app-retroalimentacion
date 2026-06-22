@@ -227,8 +227,6 @@ function DashboardScreen({ myReports, allEmployees, opportunities, allOpportunit
   const logrado = filtered.filter(o => o.status === 'logrado');
   const total = filtered.length;
 
-  const selectedName = workerFilter === 'all' ? 'Todos' : (emps.find(e => e.id === workerFilter)?.name || '');
-
   return (
     <div>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -273,21 +271,18 @@ function DashboardScreen({ myReports, allEmployees, opportunities, allOpportunit
               <div className="stat-card-label">Logradas</div>
               <div className="stat-card-value green">{logrado.length}</div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', color: '#888', fontSize: 14, padding: '0 16px' }}>{selectedName}</div>
           </div>
 
           {/* Charts */}
           <div className="charts-grid">
             <div className="chart-card">
               <div className="chart-title">Distribución</div>
-              <div style={{ fontSize: 13, color: '#888', marginTop: -14, marginBottom: 16 }}>{selectedName}</div>
               <DonutChart proceso={proceso.length} logrado={logrado.length} />
             </div>
             <div className="chart-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <div className="chart-title" style={{ marginBottom: 2 }}>Progreso de {new Date().toLocaleDateString('es-PE', { month: 'long', year: 'numeric' })}</div>
-                  <div style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>{selectedName}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 32, fontWeight: 800, color: '#15362C' }}>{logrado.length}</div>
@@ -306,7 +301,7 @@ function DashboardScreen({ myReports, allEmployees, opportunities, allOpportunit
 /* ================================================================
    MIS TRABAJADORES (+ Vista "Todos" para admins)
    ================================================================ */
-function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportunities, followups, categories, onOpenNueva, onOpenSeguimiento, onOpenLograr, expandedWorkers, toggleWorker, expandedOpps, toggleOpp, isAdmin, adminView, setAdminView }) {
+function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportunities, followups, categories, onOpenNueva, onOpenSeguimiento, onOpenLograr, onOpenEliminar, expandedWorkers, toggleWorker, expandedOpps, toggleOpp, isAdmin, adminView, setAdminView }) {
   const [segFilter, setSegFilter] = useState('all'); // 'all', 'con', 'sin' (solo en vista "todos")
   const [catFilter, setCatFilter] = useState('all');
 
@@ -429,6 +424,9 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                         <div className="opp-actions">
                           <button className="btn-seg" onClick={() => onOpenSeguimiento(opp)}>Seguimiento</button>
                           <button className="btn-lograr" onClick={() => onOpenLograr(opp)}>Logrado</button>
+                          <button className="btn-eliminar" onClick={() => onOpenEliminar(opp)} title="Eliminar oportunidad">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/></svg>
+                          </button>
                         </div>
                       )}
                     </div>
@@ -851,6 +849,7 @@ export default function App() {
   const openSeguimiento = (opp) => { setModal('seguimiento'); setActiveOpp(opp); setFObs(''); setFormError(''); };
   const openLograr = (opp) => { setModal('lograr'); setActiveOpp(opp); setFLograrObs(''); setFormError(''); };
   const openDetalle = (opp) => { setModal('detalle'); setActiveOpp(opp); };
+  const openEliminar = (opp) => { setModal('eliminar'); setActiveOpp(opp); };
   const closeModal = () => { setModal(null); setActiveOpp(null); setFormError(''); };
 
   const guardarNueva = async () => {
@@ -872,6 +871,12 @@ export default function App() {
     const duration = daysBetween(activeOpp.created_at, new Date());
     await supabase.from('opportunities').update({ status: 'logrado', closed_at: new Date().toISOString(), duration_days: duration, final_observation: fLograrObs.trim() || 'Objetivo cumplido.', updated_at: new Date().toISOString() }).eq('id', activeOpp.id);
     closeModal(); setScreen('historial'); loadOpportunities();
+  };
+
+  const eliminarOportunidad = async () => {
+    await supabase.from('opportunities').update({ status: 'eliminado', closed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', activeOpp.id);
+    await supabase.from('audit_log').insert([{ action: 'DELETE_OPP', employee_id: activeOpp.employee_id, details: `Oportunidad eliminada: "${activeOpp.description}"` }]);
+    closeModal(); loadOpportunities();
   };
 
   if (loading) return <div className="loading-container"><div className="loading-spinner" /></div>;
@@ -917,7 +922,7 @@ export default function App() {
       <Sidebar user={user} screen={screen} setScreen={setScreen} isAdmin={isAdmin} onLogout={handleLogout} managerName={currentManager?.name} />
       <main className="main-content">
         {screen === 'dashboard' && <DashboardScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
-        {screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} expandedWorkers={expandedWorkers} toggleWorker={toggleWorker} expandedOpps={expandedOpps} toggleOpp={toggleOpp} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
+        {screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenEliminar={openEliminar} expandedWorkers={expandedWorkers} toggleWorker={toggleWorker} expandedOpps={expandedOpps} toggleOpp={toggleOpp} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {screen === 'historial' && <HistorialScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenDetalle={openDetalle} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {screen === 'config' && isAdmin && <ConfigScreen employees={employees} categories={categories} onEmployeesUpdated={loadEmployees} onAssignmentsUpdated={loadAssignments} onCategoriesUpdated={loadCategories} />}
         {screen === 'config' && !isAdmin && <div className="error-msg">No tienes acceso a esta sección</div>}
@@ -1001,6 +1006,25 @@ export default function App() {
           <div className="modal-actions">
             <button className="btn-secondary" onClick={() => setModal('lograr')}>Volver</button>
             <button className="btn-primary" onClick={confirmarLogrado} style={{ flex: 1 }}>Sí, cerrar oportunidad</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL: ELIMINAR */}
+      {modal === 'eliminar' && activeOpp && (
+        <Modal onClose={closeModal}>
+          <div className="modal-title">¿Eliminar esta oportunidad?</div>
+          <div className="modal-context">
+            <div className="modal-context-label">Oportunidad</div>
+            <div className="modal-context-text">{activeOpp.description}</div>
+            <div className="modal-context-meta">Colaborador: {activeEmp?.name || '—'}</div>
+          </div>
+          <div style={{ fontSize: 14, color: '#666', lineHeight: 1.6, marginBottom: 20, background: '#fff3f3', padding: 16, borderRadius: 10, borderLeft: '4px solid #D64545' }}>
+            La oportunidad será removida de la vista activa. El registro se conserva en la base de datos.
+          </div>
+          <div className="modal-actions">
+            <button className="btn-secondary" onClick={closeModal}>Cancelar</button>
+            <button className="btn-danger" onClick={eliminarOportunidad} style={{ flex: 1 }}>Sí, eliminar</button>
           </div>
         </Modal>
       )}
