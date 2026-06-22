@@ -226,7 +226,6 @@ function DashboardScreen({ myReports, allEmployees, opportunities, allOpportunit
   const proceso = filtered.filter(o => o.status === 'proceso');
   const logrado = filtered.filter(o => o.status === 'logrado');
   const total = filtered.length;
-  // eslint-disable-next-line no-unused-vars
   const tasa = total > 0 ? Math.round(logrado.length / total * 100) : 0;
 
   const selectedName = workerFilter === 'all' ? 'Todos' : (emps.find(e => e.id === workerFilter)?.name || '');
@@ -308,17 +307,19 @@ function DashboardScreen({ myReports, allEmployees, opportunities, allOpportunit
 /* ================================================================
    MIS TRABAJADORES (+ Vista "Todos" para admins)
    ================================================================ */
-function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportunities, followups, onOpenNueva, onOpenSeguimiento, onOpenLograr, expandedWorkers, toggleWorker, expandedOpps, toggleOpp, isAdmin, adminView, setAdminView }) {
+function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportunities, followups, categories, onOpenNueva, onOpenSeguimiento, onOpenLograr, expandedWorkers, toggleWorker, expandedOpps, toggleOpp, isAdmin, adminView, setAdminView }) {
   const [segFilter, setSegFilter] = useState('all'); // 'all', 'con', 'sin' (solo en vista "todos")
+  const [catFilter, setCatFilter] = useState('all');
 
   const emps = adminView === 'all' ? allEmployees : myReports;
   const opps = adminView === 'all' ? allOpportunities : opportunities;
   const activeOpps = opps.filter(o => o.status === 'proceso');
+  const filteredOpps = catFilter === 'all' ? activeOpps : activeOpps.filter(o => o.category_id === catFilter);
 
   // Filtro de seguimiento (solo vista "todos")
   const filteredEmps = adminView === 'all' && segFilter !== 'all'
     ? emps.filter(e => {
-        const hasOpp = activeOpps.some(o => o.employee_id === e.id);
+        const hasOpp = filteredOpps.some(o => o.employee_id === e.id);
         return segFilter === 'con' ? hasOpp : !hasOpp;
       })
     : emps;
@@ -337,25 +338,36 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
 
       <AdminViewToggle view={adminView} setView={setAdminView} isAdmin={isAdmin} />
 
+      {/* Filtro de categoría */}
+      {categories.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <span style={{ fontSize: 13, color: '#888' }}>Categoría:</span>
+          <select className="form-select" style={{ width: 'auto', padding: '6px 12px', fontSize: 13 }} value={catFilter} onChange={e => setCatFilter(e.target.value)}>
+            <option value="all">Todas las categorías</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      )}
+
       {/* Filtro de seguimiento (solo vista "todos") */}
       {adminView === 'all' && (
         <div className="tabs" style={{ marginBottom: 16 }}>
           <button className={`tab ${segFilter === 'all' ? 'active' : ''}`} onClick={() => setSegFilter('all')}>Todos ({emps.length})</button>
-          <button className={`tab ${segFilter === 'con' ? 'active' : ''}`} onClick={() => setSegFilter('con')}>Con seguimiento ({emps.filter(e => activeOpps.some(o => o.employee_id === e.id)).length})</button>
-          <button className={`tab ${segFilter === 'sin' ? 'active' : ''}`} onClick={() => setSegFilter('sin')}>Sin seguimiento ({emps.filter(e => !activeOpps.some(o => o.employee_id === e.id)).length})</button>
+          <button className={`tab ${segFilter === 'con' ? 'active' : ''}`} onClick={() => setSegFilter('con')}>Con seguimiento ({emps.filter(e => filteredOpps.some(o => o.employee_id === e.id)).length})</button>
+          <button className={`tab ${segFilter === 'sin' ? 'active' : ''}`} onClick={() => setSegFilter('sin')}>Sin seguimiento ({emps.filter(e => !filteredOpps.some(o => o.employee_id === e.id)).length})</button>
         </div>
       )}
 
       <div style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>
         {adminView === 'all'
-          ? `${filteredEmps.length} trabajadores · ${activeOpps.length} oportunidades en proceso`
-          : `Oportunidades en proceso: ${activeOpps.length}`}
+          ? `${filteredEmps.length} trabajadores · ${filteredOpps.length} oportunidades en proceso`
+          : `Oportunidades en proceso: ${filteredOpps.length}`}
       </div>
 
       {filteredEmps.length === 0 && <div className="empty-state">No hay empleados para mostrar.</div>}
 
       {filteredEmps.map((emp, idx) => {
-        const empOpps = activeOpps.filter(o => o.employee_id === emp.id);
+        const empOpps = filteredOpps.filter(o => o.employee_id === emp.id);
         const isExpanded = expandedWorkers[emp.id];
         const color = COLORS[idx % COLORS.length];
 
@@ -390,9 +402,13 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                   const lastFu = oppFollowups.length > 0 ? oppFollowups[oppFollowups.length - 1] : null;
                   const lastFuDays = lastFu ? daysBetween(lastFu.created_at, new Date()) : null;
                   const isOppExpanded = expandedOpps[opp.id];
+                  const cat = categories.find(c => c.id === opp.category_id);
 
                   return (
                     <div key={opp.id} className="opp-card">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        {cat && <span className="cat-badge" style={{ background: cat.color + '20', color: cat.color, borderLeft: `3px solid ${cat.color}` }}>{cat.name}</span>}
+                      </div>
                       <div className="opp-desc">{opp.description}</div>
                       <div className="opp-meta">
                         <span>Creada {fmtDate(opp.created_at)} · hace {daysAgo} día{daysAgo !== 1 ? 's' : ''}</span>
@@ -431,12 +447,14 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
 /* ================================================================
    HISTORIAL
    ================================================================ */
-function HistorialScreen({ myReports, allEmployees, opportunities, allOpportunities, followups, onOpenDetalle, isAdmin, adminView, setAdminView }) {
+function HistorialScreen({ myReports, allEmployees, opportunities, allOpportunities, followups, categories, onOpenDetalle, isAdmin, adminView, setAdminView }) {
   const [workerFilter, setWorkerFilter] = useState('all');
+  const [catFilter, setCatFilter] = useState('all');
   const emps = adminView === 'all' ? allEmployees : myReports;
   const opps = adminView === 'all' ? allOpportunities : opportunities;
   const logradas = opps.filter(o => o.status === 'logrado');
-  const filtered = workerFilter === 'all' ? logradas : logradas.filter(o => o.employee_id === workerFilter);
+  const filteredByCat = catFilter === 'all' ? logradas : logradas.filter(o => o.category_id === catFilter);
+  const filtered = workerFilter === 'all' ? filteredByCat : filteredByCat.filter(o => o.employee_id === workerFilter);
 
   return (
     <div>
@@ -447,14 +465,20 @@ function HistorialScreen({ myReports, allEmployees, opportunities, allOpportunit
 
       <AdminViewToggle view={adminView} setView={setAdminView} isAdmin={isAdmin} />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <span style={{ fontSize: 14, color: '#555', fontWeight: 600 }}>{filtered.length} oportunidades cerradas</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, color: '#888' }}>Filtrar:</span>
           <select className="form-select" style={{ width: 'auto', padding: '8px 12px' }} value={workerFilter} onChange={e => setWorkerFilter(e.target.value)}>
             <option value="all">Todos los trabajadores</option>
             {emps.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
+          {categories.length > 0 && (
+            <select className="form-select" style={{ width: 'auto', padding: '8px 12px' }} value={catFilter} onChange={e => setCatFilter(e.target.value)}>
+              <option value="all">Todas las categorías</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
         </div>
       </div>
 
@@ -474,6 +498,7 @@ function HistorialScreen({ myReports, allEmployees, opportunities, allOpportunit
                 <div style={{ display: 'flex', gap: 14 }}>
                   <div className="worker-avatar" style={{ background: color, flexShrink: 0, width: 36, height: 36, fontSize: 13 }}>{initials(emp?.name || '')}</div>
                   <div style={{ flex: 1 }}>
+                    {(() => { const cat = categories.find(c => c.id === opp.category_id); return cat ? <span className="cat-badge" style={{ background: cat.color + '20', color: cat.color, borderLeft: `3px solid ${cat.color}`, marginBottom: 6 }}>{cat.name}</span> : null; })()}
                     <div className="hist-desc">{opp.description}</div>
                     <div className="hist-meta">
                       {emp?.name} · Creada {fmtDate(opp.created_at)} · Cerrada {fmtDate(opp.closed_at)} · {duration} días
@@ -496,7 +521,7 @@ function HistorialScreen({ myReports, allEmployees, opportunities, allOpportunit
 /* ================================================================
    CONFIGURACIÓN (SOLO ADMIN)
    ================================================================ */
-function ConfigScreen({ employees, onEmployeesUpdated, onAssignmentsUpdated }) {
+function ConfigScreen({ employees, categories, onEmployeesUpdated, onAssignmentsUpdated, onCategoriesUpdated }) {
   const [tab, setTab] = useState('sync');
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncResults, setSyncResults] = useState(null);
@@ -504,6 +529,9 @@ function ConfigScreen({ employees, onEmployeesUpdated, onAssignmentsUpdated }) {
   const [reassignEmp, setReassignEmp] = useState(null);
   const [newMgrId, setNewMgrId] = useState('');
   const [reassignReason, setReassignReason] = useState('');
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatColor, setNewCatColor] = useState('#5B8DEF');
+  const CAT_COLORS = ['#5B8DEF', '#E77C5A', '#8B5CF6', '#2C8B5D', '#C98A2B', '#D64545', '#3A8F8F', '#E07C4F', '#6366F1', '#EC4899'];
 
   const syncBuk = async () => {
     setSyncLoading(true); setSyncResults(null);
@@ -569,6 +597,7 @@ function ConfigScreen({ employees, onEmployeesUpdated, onAssignmentsUpdated }) {
         <button className={`tab ${tab === 'sync' ? 'active' : ''}`} onClick={() => setTab('sync')}>🔄 Actualizar desde Buk</button>
         <button className={`tab ${tab === 'toggle' ? 'active' : ''}`} onClick={() => setTab('toggle')}>👥 Activar / Desactivar</button>
         <button className={`tab ${tab === 'reassign' ? 'active' : ''}`} onClick={() => setTab('reassign')}>🔀 Reasignar</button>
+        <button className={`tab ${tab === 'categories' ? 'active' : ''}`} onClick={() => setTab('categories')}>🏷️ Categorías</button>
       </div>
 
       {tab === 'sync' && (
@@ -615,6 +644,64 @@ function ConfigScreen({ employees, onEmployeesUpdated, onAssignmentsUpdated }) {
               <div style={{ display: 'flex', gap: 12 }}><button className="btn-primary" onClick={handleReassign} disabled={!newMgrId} style={{ flex: 1 }}>Confirmar</button><button className="btn-secondary" onClick={() => { setReassignEmp(null); setNewMgrId(''); setReassignReason(''); }}>Cancelar</button></div>
             </div>
           )}
+        </div>
+      )}
+
+      {tab === 'categories' && (
+        <div className="config-section">
+          <div className="config-section-title">🏷️ Gestión de Categorías</div>
+          <div className="config-section-desc">Agrega o elimina categorías para clasificar oportunidades de mejora.</div>
+
+          <div style={{ marginBottom: 24 }}>
+            <h4 style={{ color: '#333', marginBottom: 12 }}>Categorías actuales ({categories.length})</h4>
+            {categories.length === 0 ? (
+              <div className="empty-state">No hay categorías creadas.</div>
+            ) : (
+              <div className="employee-list">
+                {categories.map(cat => (
+                  <div key={cat.id} className="employee-item">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 16, height: 16, borderRadius: 4, background: cat.color, flexShrink: 0 }} />
+                      <span style={{ fontWeight: 600 }}>{cat.name}</span>
+                    </div>
+                    <button className="btn-danger" onClick={async () => {
+                      if (!window.confirm(`¿Eliminar la categoría "${cat.name}"? Las oportunidades existentes mantendrán su categoría.`)) return;
+                      await supabase.from('categories').delete().eq('id', cat.id);
+                      onCategoriesUpdated();
+                    }}>Eliminar</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ background: '#f8f9fa', padding: 20, borderRadius: 10 }}>
+            <h4 style={{ marginBottom: 12 }}>Agregar nueva categoría</h4>
+            <div className="form-group">
+              <label>Nombre</label>
+              <input className="form-input" placeholder="Ej: Cumplimiento Normativo" value={newCatName} onChange={e => setNewCatName(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Color</label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {CAT_COLORS.map(c => (
+                  <button key={c} onClick={() => setNewCatColor(c)} style={{ width: 32, height: 32, borderRadius: 8, background: c, border: newCatColor === c ? '3px solid #0a1628' : '2px solid #ddd', cursor: 'pointer', transition: 'transform 0.1s', transform: newCatColor === c ? 'scale(1.15)' : 'scale(1)' }} />
+                ))}
+              </div>
+            </div>
+            {newCatName.trim() && (
+              <div style={{ marginBottom: 16 }}>
+                <span style={{ fontSize: 12, color: '#888' }}>Vista previa:</span>
+                <span className="cat-badge" style={{ background: newCatColor + '20', color: newCatColor, borderLeft: `3px solid ${newCatColor}`, marginLeft: 8 }}>{newCatName.trim()}</span>
+              </div>
+            )}
+            <button className="btn-primary" disabled={!newCatName.trim()} onClick={async () => {
+              const { error } = await supabase.from('categories').insert([{ name: newCatName.trim(), color: newCatColor }]);
+              if (error) { alert('Error: ' + error.message); return; }
+              setNewCatName(''); setNewCatColor('#5B8DEF');
+              onCategoriesUpdated();
+            }}>Agregar categoría</button>
+          </div>
         </div>
       )}
     </div>
@@ -703,6 +790,7 @@ export default function App() {
   const [opportunities, setOpportunities] = useState([]);
   const [followups, setFollowups] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [categories, setCategories] = useState([]);
 
   // UI state
   const [modal, setModal] = useState(null);
@@ -717,6 +805,7 @@ export default function App() {
   const [fDesc, setFDesc] = useState('');
   const [fObs, setFObs] = useState('');
   const [fLograrObs, setFLograrObs] = useState('');
+  const [fCategory, setFCategory] = useState('');
   const [formError, setFormError] = useState('');
 
   const isAdmin = user ? ADMIN_EMAILS.includes(user.email) : false;
@@ -737,7 +826,11 @@ export default function App() {
     const { data } = await supabase.from('feedback_assignments').select('*').order('created_at', { ascending: false });
     setAssignments(data || []);
   }, []);
-  const loadAll = useCallback(() => { loadEmployees(); loadOpportunities(); loadFollowups(); loadAssignments(); }, [loadEmployees, loadOpportunities, loadFollowups, loadAssignments]);
+  const loadCategories = useCallback(async () => {
+    const { data } = await supabase.from('categories').select('*').order('created_at', { ascending: true });
+    setCategories(data || []);
+  }, []);
+  const loadAll = useCallback(() => { loadEmployees(); loadOpportunities(); loadFollowups(); loadAssignments(); loadCategories(); }, [loadEmployees, loadOpportunities, loadFollowups, loadAssignments, loadCategories]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -755,7 +848,7 @@ export default function App() {
   const toggleWorker = (id) => setExpandedWorkers(s => ({ ...s, [id]: !s[id] }));
   const toggleOpp = (id) => setExpandedOpps(s => ({ ...s, [id]: !s[id] }));
 
-  const openNueva = () => { setModal('nueva'); setFEmpleado(''); setFDesc(''); setFormError(''); };
+  const openNueva = () => { setModal('nueva'); setFEmpleado(''); setFDesc(''); setFCategory(''); setFormError(''); };
   const openSeguimiento = (opp) => { setModal('seguimiento'); setActiveOpp(opp); setFObs(''); setFormError(''); };
   const openLograr = (opp) => { setModal('lograr'); setActiveOpp(opp); setFLograrObs(''); setFormError(''); };
   const openDetalle = (opp) => { setModal('detalle'); setActiveOpp(opp); };
@@ -763,9 +856,10 @@ export default function App() {
 
   const guardarNueva = async () => {
     if (!fEmpleado) return setFormError('Selecciona un empleado.');
+    if (!fCategory) return setFormError('Selecciona una categoría.');
     if (fDesc.trim().length < 10) return setFormError('La descripción debe tener al menos 10 caracteres.');
     const mgr = employees.find(e => e.email === user?.email);
-    await supabase.from('opportunities').insert([{ employee_id: fEmpleado, manager_id: mgr?.id || null, description: fDesc.trim(), status: 'proceso' }]);
+    await supabase.from('opportunities').insert([{ employee_id: fEmpleado, manager_id: mgr?.id || null, description: fDesc.trim(), status: 'proceso', category_id: fCategory }]);
     setExpandedWorkers(s => ({ ...s, [fEmpleado]: true }));
     closeModal(); setScreen('trabajadores'); loadOpportunities();
   };
@@ -824,9 +918,9 @@ export default function App() {
       <Sidebar user={user} screen={screen} setScreen={setScreen} isAdmin={isAdmin} onLogout={handleLogout} managerName={currentManager?.name} />
       <main className="main-content">
         {screen === 'dashboard' && <DashboardScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
-        {screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} expandedWorkers={expandedWorkers} toggleWorker={toggleWorker} expandedOpps={expandedOpps} toggleOpp={toggleOpp} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
-        {screen === 'historial' && <HistorialScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} onOpenDetalle={openDetalle} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
-        {screen === 'config' && isAdmin && <ConfigScreen employees={employees} onEmployeesUpdated={loadEmployees} onAssignmentsUpdated={loadAssignments} />}
+        {screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} expandedWorkers={expandedWorkers} toggleWorker={toggleWorker} expandedOpps={expandedOpps} toggleOpp={toggleOpp} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
+        {screen === 'historial' && <HistorialScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenDetalle={openDetalle} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
+        {screen === 'config' && isAdmin && <ConfigScreen employees={employees} categories={categories} onEmployeesUpdated={loadEmployees} onAssignmentsUpdated={loadAssignments} onCategoriesUpdated={loadCategories} />}
         {screen === 'config' && !isAdmin && <div className="error-msg">No tienes acceso a esta sección</div>}
       </main>
 
@@ -839,6 +933,12 @@ export default function App() {
             <select className="form-select" value={fEmpleado} onChange={e => setFEmpleado(e.target.value)}>
               <option value="">— Selecciona un colaborador —</option>
               {myDirectReports.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+          </div>
+          <div className="form-group"><label>Categoría</label>
+            <select className="form-select" value={fCategory} onChange={e => setFCategory(e.target.value)}>
+              <option value="">— Selecciona una categoría —</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div className="form-group"><label>Descripción de la oportunidad</label>
@@ -913,6 +1013,7 @@ export default function App() {
             <div className="modal-title" style={{ marginBottom: 0 }}>{activeOpp.description}</div>
             <span className="badge badge-green">Logrado</span>
           </div>
+          {(() => { const cat = categories.find(c => c.id === activeOpp.category_id); return cat ? <div style={{ marginBottom: 12 }}><span className="cat-badge" style={{ background: cat.color + '20', color: cat.color, borderLeft: `3px solid ${cat.color}` }}>{cat.name}</span></div> : null; })()}
           <div style={{ display: 'flex', gap: 12, marginBottom: 16, fontSize: 13, color: '#888', flexWrap: 'wrap' }}>
             <span>Colaborador: <strong>{activeEmp?.name}</strong></span><span>·</span>
             <span>Creada: {fmtDate(activeOpp.created_at)}</span><span>·</span>

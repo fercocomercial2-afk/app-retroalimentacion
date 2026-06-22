@@ -1,0 +1,15 @@
+APP RETROALIMENTACION
+-----------------------------------------------------------------------------
+App: Retroalimentación
+Contraseña: Ferco123Medical
+Supabase: https://supabase.com/dashboard/project/jordlfuxxfhuicbmnnlf
+Url: https://jordlfuxxfhuicbmnnlf.supabase.co/rest/v1/
+anon key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpvcmRsZnV4eGZodWljYm1ubmxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4NjYwMDYsImV4cCI6MjA5NzQ0MjAwNn0.m0M4mmXpeQKL6gVpoBaFqgfgBpwCYa0Cg0sK8kt4Mfw
+-----------------------------------------------------------------------------
+GitHub: https://github.com/fercocomercial2-afk/app-retroalimentacion
+-----------------------------------------------------------------------------
+Vercel: https://vercel.com/ferco-medical-s-projects
+-----------------------------------------------------------------------------
+URL: https://ferco-medical.buk.pe/apidocs?country=peru&language=es#/Empleados
+API KEY: rw8epoUvKck3NZZSp83fFGkR
+-----------------------------------------------------------------------------
