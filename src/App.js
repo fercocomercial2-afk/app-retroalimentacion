@@ -226,7 +226,6 @@ function DashboardScreen({ myReports, allEmployees, opportunities, allOpportunit
   const proceso = filtered.filter(o => o.status === 'proceso');
   const logrado = filtered.filter(o => o.status === 'logrado');
   const total = filtered.length;
-  const tasa = total > 0 ? Math.round(logrado.length / total * 100) : 0;
 
   const selectedName = workerFilter === 'all' ? 'Todos' : (emps.find(e => e.id === workerFilter)?.name || '');
 
