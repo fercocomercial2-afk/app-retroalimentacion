@@ -239,15 +239,23 @@ function ExpandableText({ text, limit = 150, className = '' }) {
 /* ================================================================
    DASHBOARD
    ================================================================ */
-function DashboardScreen({ myReports, allEmployees, opportunities, allOpportunities, isAdmin, adminView, setAdminView }) {
+function DashboardScreen({ myReports, allEmployees, opportunities, allOpportunities, categories, isAdmin, adminView, setAdminView }) {
   const emps = adminView === 'all' ? allEmployees : myReports;
   const opps = adminView === 'all' ? allOpportunities : opportunities;
   const [workerFilter, setWorkerFilter] = useState('all');
 
   const filtered = workerFilter === 'all' ? opps : opps.filter(o => o.employee_id === workerFilter);
-  const proceso = filtered.filter(o => o.status === 'proceso');
-  const logrado = filtered.filter(o => o.status === 'logrado');
-  const total = filtered.length;
+  const proyectoCat = categories.find(c => c.name === 'Proyectos');
+  const soloOpps = filtered.filter(o => o.category_id !== proyectoCat?.id);
+  const soloProyectos = filtered.filter(o => o.category_id === proyectoCat?.id);
+
+  const proceso = soloOpps.filter(o => o.status === 'proceso');
+  const logrado = soloOpps.filter(o => o.status === 'logrado');
+  const total = soloOpps.length;
+
+  const proyProceso = soloProyectos.filter(o => o.status === 'proceso');
+  const proyLogrado = soloProyectos.filter(o => o.status === 'logrado');
+  const proyTotal = soloProyectos.length;
 
   return (
     <div>
@@ -279,7 +287,8 @@ function DashboardScreen({ myReports, allEmployees, opportunities, allOpportunit
 
         {/* Panel derecho - KPIs y charts */}
         <div className="dash-content">
-          {/* KPI principal */}
+          {/* KPI principal: Oportunidades */}
+          <div className="dash-kpi-label">OPORTUNIDADES</div>
           <div className="dash-kpi-main">
             <div className="stat-card" style={{ flex: 1 }}>
               <div className="stat-card-label">Total de oportunidades</div>
@@ -295,10 +304,27 @@ function DashboardScreen({ myReports, allEmployees, opportunities, allOpportunit
             </div>
           </div>
 
+          {/* KPI: Proyectos */}
+          <div className="dash-kpi-label" style={{ marginTop: 16 }}>PROYECTOS</div>
+          <div className="dash-kpi-main">
+            <div className="stat-card" style={{ flex: 1 }}>
+              <div className="stat-card-label">Total de proyectos</div>
+              <div className="stat-card-value" style={{ color: '#15362C' }}>{proyTotal}</div>
+            </div>
+            <div className="stat-card" style={{ flex: 1 }}>
+              <div className="stat-card-label">En proceso</div>
+              <div className="stat-card-value gold">{proyProceso.length}</div>
+            </div>
+            <div className="stat-card" style={{ flex: 1 }}>
+              <div className="stat-card-label">Logrados</div>
+              <div className="stat-card-value green">{proyLogrado.length}</div>
+            </div>
+          </div>
+
           {/* Charts */}
           <div className="charts-grid">
             <div className="chart-card">
-              <div className="chart-title">Distribución</div>
+              <div className="chart-title">Distribución (Oportunidades)</div>
               <DonutChart proceso={proceso.length} logrado={logrado.length} />
             </div>
             <div className="chart-card">
@@ -323,7 +349,7 @@ function DashboardScreen({ myReports, allEmployees, opportunities, allOpportunit
 /* ================================================================
    MIS TRABAJADORES (+ Vista "Todos" para admins)
    ================================================================ */
-function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportunities, followups, categories, tasks, onOpenNueva, onOpenSeguimiento, onOpenLograr, onOpenEliminar, onOpenEditarOpp, onOpenNuevaTask, onOpenSeguimientoTask, onOpenLograrTask, onOpenEliminarTask, onOpenEditarTask, expandedWorkers, toggleWorker, expandedOpps, toggleOpp, expandedTasks, toggleTask, isAdmin, adminView, setAdminView }) {
+function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportunities, followups, categories, tasks, onOpenNueva, onOpenSeguimiento, onOpenLograr, onOpenEliminar, onOpenEditarOpp, onOpenNuevaTask, onOpenSeguimientoTask, onOpenLograrTask, onOpenEliminarTask, onOpenEditarTask, onOpenEditarFollowup, expandedWorkers, toggleWorker, expandedOpps, toggleOpp, expandedTasks, toggleTask, isAdmin, adminView, setAdminView }) {
   const [segFilter, setSegFilter] = useState('all'); // 'all', 'con', 'sin' (solo en vista "todos")
   const [catFilter, setCatFilter] = useState('all');
 
@@ -422,6 +448,13 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                   const isProyecto = cat?.name === 'Proyectos';
                   const oppTasks = isProyecto ? tasks.filter(t => t.opportunity_id === opp.id) : [];
                   const tasksLogradas = oppTasks.filter(t => t.status === 'logrado').length;
+                  const tasksPendientes = oppTasks.filter(t => t.status === 'pendiente').length;
+                  const today0 = new Date(); today0.setHours(0,0,0,0);
+                  const hasAlert = isProyecto && oppTasks.some(t => {
+                    if (t.status !== 'pendiente' || !t.due_date) return false;
+                    const due = new Date(t.due_date + 'T00:00:00');
+                    return due <= today0;
+                  });
 
                   return (
                     <div key={opp.id} className="opp-card">
@@ -436,8 +469,10 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                         )}
                       </div>
 
-                      {isProyecto && opp.title && <div className="opp-title">{opp.title}</div>}
-                      <div className="opp-desc"><ExpandableText text={opp.description} /></div>
+                      <div className="opp-desc">
+                        {opp.title || opp.description}
+                        {hasAlert && <span className="task-alert" title="Hay tareas vencidas o que vencen hoy"> ⚠️</span>}
+                      </div>
                       <div className="opp-meta">
                         <span>Creada {fmtDate(opp.created_at)} · hace {daysAgo} día{daysAgo !== 1 ? 's' : ''}</span>
                         <span>{lastFu ? `Último seg. ${fmtDate(lastFu.created_at)} · hace ${lastFuDays} día${lastFuDays !== 1 ? 's' : ''}` : 'Sin seguimientos aún'}</span>
@@ -449,15 +484,28 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                       )}
                       {isOppExpanded && oppFollowups.map(fu => (
                         <div key={fu.id} className="followup-item">
-                          <div className="followup-date">{fmtDate(fu.created_at)}</div>
-                          <div className="followup-text"><ExpandableText text={fu.observation} limit={200} /></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                            <div style={{ flex: 1 }}>
+                              <div className="followup-date">{fmtDate(fu.created_at)}</div>
+                              <div className="followup-text"><ExpandableText text={fu.observation} limit={200} /></div>
+                            </div>
+                            {(adminView !== 'all') && (
+                              <button className="btn-editar" onClick={() => onOpenEditarFollowup(fu)} title="Editar seguimiento">
+                                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))}
                       {/* Solo mostrar botones si es "Mis Trabajadores" o admin */}
                       {(adminView !== 'all') && (
                         <div className="opp-actions">
                           <button className="btn-seg" onClick={() => onOpenSeguimiento(opp)}>Seguimiento</button>
+                          {isProyecto && <button className="btn-seg" onClick={() => onOpenNuevaTask(opp)}>+ Tarea</button>}
                           {!isProyecto && <button className="btn-lograr" onClick={() => onOpenLograr(opp)}>Logrado</button>}
+                          {isProyecto && (
+                            <button className="btn-lograr" disabled={tasksPendientes > 0} title={tasksPendientes > 0 ? 'No puedes cerrar el proyecto: aún hay tareas pendientes' : ''} onClick={() => tasksPendientes === 0 && onOpenLograr(opp)}>Logrado</button>
+                          )}
                           <button className="btn-eliminar" onClick={() => onOpenEliminar(opp)} title="Eliminar oportunidad">
                             <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/></svg>
                           </button>
@@ -485,7 +533,6 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                                   <span className="task-check">{task.status === 'logrado' ? '☑' : '☐'}</span>
                                   <div style={{ flex: 1 }}>
                                     <div className="task-title">{task.title}{isVencida && <span className="task-alert"> ⚠️ Vencida</span>}{isHoy && <span className="task-alert"> ⚠️ Vence hoy</span>}</div>
-                                    {task.description && <div className="task-desc"><ExpandableText text={task.description} limit={120} /></div>}
                                     <div className="task-meta">
                                       {task.due_date && <span>Vence: {fmtDate(task.due_date)} · </span>}
                                       {taskFollowups.length > 0 ? (
@@ -503,8 +550,17 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                                 </div>
                                 {isTaskExpanded && taskFollowups.map(fu => (
                                   <div key={fu.id} className="followup-item" style={{ marginLeft: 26 }}>
-                                    <div className="followup-date">{fmtDate(fu.created_at)}</div>
-                                    <div className="followup-text"><ExpandableText text={fu.observation} limit={200} /></div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                                      <div style={{ flex: 1 }}>
+                                        <div className="followup-date">{fmtDate(fu.created_at)}</div>
+                                        <div className="followup-text"><ExpandableText text={fu.observation} limit={200} /></div>
+                                      </div>
+                                      {(adminView !== 'all') && (
+                                        <button className="btn-editar" onClick={() => onOpenEditarFollowup(fu)} title="Editar seguimiento">
+                                          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
                                 ))}
                                 {(adminView !== 'all') && isPendiente && (
@@ -519,12 +575,6 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                               </div>
                             );
                           })}
-                          {(adminView !== 'all') && (
-                            <button className="btn-add-task" onClick={() => onOpenNuevaTask(opp)}>
-                              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><line x1="7" y1="2" x2="7" y2="12"/><line x1="2" y1="7" x2="12" y2="7"/></svg>
-                              Agregar tarea
-                            </button>
-                          )}
                         </div>
                       )}
                     </div>
@@ -594,8 +644,7 @@ function HistorialScreen({ myReports, allEmployees, opportunities, allOpportunit
                   <div className="worker-avatar" style={{ background: color, flexShrink: 0, width: 36, height: 36, fontSize: 13 }}>{initials(emp?.name || '')}</div>
                   <div style={{ flex: 1 }}>
                     {(() => { const cat = categories.find(c => c.id === opp.category_id); return cat ? <span className="cat-badge" style={{ background: cat.color + '20', color: cat.color, borderLeft: `3px solid ${cat.color}`, marginBottom: 6 }}>{cat.name}</span> : null; })()}
-                    {opp.title && <div className="opp-title">{opp.title}</div>}
-                    <div className="hist-desc"><ExpandableText text={opp.description} /></div>
+                    <div className="hist-desc">{opp.title || opp.description}</div>
                     <div className="hist-meta">
                       {emp?.name} · Creada {fmtDate(opp.created_at)} · Cerrada {fmtDate(opp.closed_at)} · {duration} días
                       {adminView === 'all' && emp?.manager_name && <span> · Jefe: {firstName(emp.manager_name)}</span>}
@@ -957,16 +1006,13 @@ export default function App() {
 
   // Form state
   const [fEmpleado, setFEmpleado] = useState('');
-  const [fDesc, setFDesc] = useState('');
   const [fObs, setFObs] = useState('');
   const [fLograrObs, setFLograrObs] = useState('');
   const [fCategory, setFCategory] = useState('');
   const [fTitle, setFTitle] = useState('');
   const [fTaskTitle, setFTaskTitle] = useState('');
-  const [fTaskDesc, setFTaskDesc] = useState('');
   const [fTaskDue, setFTaskDue] = useState('');
   const [fTaskObs, setFTaskObs] = useState('');
-  const [fEditDesc, setFEditDesc] = useState('');
   const [fEditTitle, setFEditTitle] = useState('');
   const [fEditCategory, setFEditCategory] = useState('');
   const [fEditDue, setFEditDue] = useState('');
@@ -1017,7 +1063,7 @@ export default function App() {
   const toggleOpp = (id) => setExpandedOpps(s => ({ ...s, [id]: !s[id] }));
   const toggleTask = (id) => setExpandedTasks(s => ({ ...s, [id]: !s[id] }));
 
-  const openNueva = () => { setModal('nueva'); setFEmpleado(''); setFDesc(''); setFCategory(''); setFTitle(''); setFormError(''); };
+  const openNueva = () => { setModal('nueva'); setFEmpleado(''); setFCategory(''); setFTitle(''); setFormError(''); };
   const openSeguimiento = (opp) => { setModal('seguimiento'); setActiveOpp(opp); setActiveTask(null); setFObs(''); setFormError(''); };
   const openSeguimientoTask = (opp, task) => { setModal('seguimientoTask'); setActiveOpp(opp); setActiveTask(task); setFObs(''); setFormError(''); };
   const openLograr = (opp) => { setModal('lograr'); setActiveOpp(opp); setActiveTask(null); setFLograrObs(''); setFormError(''); };
@@ -1025,9 +1071,10 @@ export default function App() {
   const openDetalle = (opp) => { setModal('detalle'); setActiveOpp(opp); };
   const openEliminar = (opp) => { setModal('eliminar'); setActiveOpp(opp); setActiveTask(null); };
   const openEliminarTask = (opp, task) => { setModal('eliminarTask'); setActiveOpp(opp); setActiveTask(task); };
-  const openNuevaTask = (opp) => { setModal('nuevaTask'); setActiveOpp(opp); setFTaskTitle(''); setFTaskDesc(''); setFTaskDue(''); setFormError(''); };
-  const openEditarOpp = (opp) => { setModal('editarOpp'); setEditTarget({ type: 'opp', item: opp }); setFEditDesc(opp.description); setFEditTitle(opp.title || ''); setFEditCategory(opp.category_id || ''); setFormError(''); };
-  const openEditarTask = (opp, task) => { setModal('editarTask'); setActiveOpp(opp); setEditTarget({ type: 'task', item: task }); setFEditTitle(task.title); setFEditDesc(task.description || ''); setFEditDue(task.due_date || ''); setFormError(''); };
+  const openNuevaTask = (opp) => { setModal('nuevaTask'); setActiveOpp(opp); setFTaskTitle(''); setFTaskDue(''); setFormError(''); };
+  const openEditarOpp = (opp) => { setModal('editarOpp'); setEditTarget({ type: 'opp', item: opp }); setFEditTitle(opp.title || opp.description || ''); setFEditCategory(opp.category_id || ''); setFormError(''); };
+  const openEditarTask = (opp, task) => { setModal('editarTask'); setActiveOpp(opp); setEditTarget({ type: 'task', item: task }); setFEditTitle(task.title); setFEditDue(task.due_date || ''); setFormError(''); };
+  const openEditarFollowup = (fu) => { setModal('editarFollowup'); setEditTarget({ type: 'followup', item: fu }); setFObs(fu.observation); setFormError(''); };
   const closeModal = () => { setModal(null); setActiveOpp(null); setActiveTask(null); setEditTarget(null); setFormError(''); };
 
   const guardarNueva = async () => {
@@ -1035,10 +1082,9 @@ export default function App() {
     if (!fCategory) return setFormError('Selecciona una categoría.');
     const cat = categories.find(c => c.id === fCategory);
     const isProyecto = cat?.name === 'Proyectos';
-    if (isProyecto && fTitle.trim().length < 3) return setFormError('El título del proyecto debe tener al menos 3 caracteres.');
-    if (fDesc.trim().length < 10) return setFormError('La descripción debe tener al menos 10 caracteres.');
+    if (fTitle.trim().length < 3) return setFormError(`El nombre ${isProyecto ? 'del proyecto' : 'de la oportunidad'} debe tener al menos 3 caracteres.`);
     const mgr = employees.find(e => e.email === user?.email);
-    await supabase.from('opportunities').insert([{ employee_id: fEmpleado, manager_id: mgr?.id || null, description: fDesc.trim(), title: isProyecto ? fTitle.trim() : null, status: 'proceso', category_id: fCategory }]);
+    await supabase.from('opportunities').insert([{ employee_id: fEmpleado, manager_id: mgr?.id || null, description: fTitle.trim(), title: isProyecto ? fTitle.trim() : null, status: 'proceso', category_id: fCategory }]);
     setExpandedWorkers(s => ({ ...s, [fEmpleado]: true }));
     closeModal(); setScreen('trabajadores'); loadOpportunities();
   };
@@ -1054,8 +1100,8 @@ export default function App() {
     closeModal(); loadFollowups();
   };
   const guardarNuevaTask = async () => {
-    if (fTaskTitle.trim().length < 3) return setFormError('El título de la tarea debe tener al menos 3 caracteres.');
-    await supabase.from('tasks').insert([{ opportunity_id: activeOpp.id, title: fTaskTitle.trim(), description: fTaskDesc.trim() || null, due_date: fTaskDue || null, status: 'pendiente' }]);
+    if (fTaskTitle.trim().length < 3) return setFormError('El nombre de la tarea debe tener al menos 3 caracteres.');
+    await supabase.from('tasks').insert([{ opportunity_id: activeOpp.id, title: fTaskTitle.trim(), due_date: fTaskDue || null, status: 'pendiente' }]);
     setExpandedOpps(s => ({ ...s, [activeOpp.id]: true }));
     closeModal(); loadTasks();
   };
@@ -1070,22 +1116,30 @@ export default function App() {
   };
   const guardarEdicion = async () => {
     if (editTarget.type === 'opp') {
-      if (fEditDesc.trim().length < 10) return setFormError('La descripción debe tener al menos 10 caracteres.');
       const cat = categories.find(c => c.id === fEditCategory);
       const isProyecto = cat?.name === 'Proyectos';
-      if (isProyecto && fEditTitle.trim().length < 3) return setFormError('El título del proyecto debe tener al menos 3 caracteres.');
-      await supabase.from('opportunities').update({ description: fEditDesc.trim(), title: isProyecto ? fEditTitle.trim() : null, category_id: fEditCategory, updated_at: new Date().toISOString() }).eq('id', editTarget.item.id);
-      await supabase.from('audit_log').insert([{ action: 'EDIT_OPP', employee_id: editTarget.item.employee_id, details: `Oportunidad editada: "${editTarget.item.description}" → "${fEditDesc.trim()}"` }]);
+      if (fEditTitle.trim().length < 3) return setFormError(`El nombre ${isProyecto ? 'del proyecto' : 'de la oportunidad'} debe tener al menos 3 caracteres.`);
+      await supabase.from('opportunities').update({ description: fEditTitle.trim(), title: isProyecto ? fEditTitle.trim() : null, category_id: fEditCategory, updated_at: new Date().toISOString() }).eq('id', editTarget.item.id);
+      await supabase.from('audit_log').insert([{ action: 'EDIT_OPP', employee_id: editTarget.item.employee_id, details: `Oportunidad editada: "${editTarget.item.description}" → "${fEditTitle.trim()}"` }]);
       loadOpportunities();
-    } else {
-      if (fEditTitle.trim().length < 3) return setFormError('El título debe tener al menos 3 caracteres.');
-      await supabase.from('tasks').update({ title: fEditTitle.trim(), description: fEditDesc.trim() || null, due_date: fEditDue || null, updated_at: new Date().toISOString() }).eq('id', editTarget.item.id);
+    } else if (editTarget.type === 'task') {
+      if (fEditTitle.trim().length < 3) return setFormError('El nombre debe tener al menos 3 caracteres.');
+      await supabase.from('tasks').update({ title: fEditTitle.trim(), due_date: fEditDue || null, updated_at: new Date().toISOString() }).eq('id', editTarget.item.id);
       await supabase.from('audit_log').insert([{ action: 'EDIT_TASK', employee_id: activeOpp?.employee_id, details: `Tarea editada: "${editTarget.item.title}" → "${fEditTitle.trim()}"` }]);
       loadTasks();
+    } else if (editTarget.type === 'followup') {
+      if (fObs.trim().length < 5) return setFormError('La observación debe tener al menos 5 caracteres.');
+      await supabase.from('followups').update({ observation: fObs.trim() }).eq('id', editTarget.item.id);
+      loadFollowups();
     }
     closeModal();
   };
   const confirmarLogrado = async () => {
+    const cat = categories.find(c => c.id === activeOpp.category_id);
+    if (cat?.name === 'Proyectos') {
+      const pendientes = tasks.filter(t => t.opportunity_id === activeOpp.id && t.status === 'pendiente').length;
+      if (pendientes > 0) { closeModal(); return; }
+    }
     const duration = daysBetween(activeOpp.created_at, new Date());
     await supabase.from('opportunities').update({ status: 'logrado', closed_at: new Date().toISOString(), duration_days: duration, final_observation: fLograrObs.trim() || 'Objetivo cumplido.', updated_at: new Date().toISOString() }).eq('id', activeOpp.id);
     closeModal(); setScreen('historial'); loadOpportunities();
@@ -1148,8 +1202,8 @@ export default function App() {
     <div className="app-layout">
       <Sidebar user={user} screen={screen} setScreen={setScreen} isAdmin={isAdmin} onLogout={handleLogout} managerName={currentManager?.name} notifCount={myNotifs.length} />
       <main className="main-content">
-        {screen === 'dashboard' && <DashboardScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
-        {screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} tasks={tasks} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenEliminar={openEliminar} onOpenEditarOpp={openEditarOpp} onOpenNuevaTask={openNuevaTask} onOpenSeguimientoTask={openSeguimientoTask} onOpenLograrTask={openLograrTask} onOpenEliminarTask={openEliminarTask} onOpenEditarTask={openEditarTask} expandedWorkers={expandedWorkers} toggleWorker={toggleWorker} expandedOpps={expandedOpps} toggleOpp={toggleOpp} expandedTasks={expandedTasks} toggleTask={toggleTask} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
+        {screen === 'dashboard' && <DashboardScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} categories={categories} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
+        {screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} tasks={tasks} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenEliminar={openEliminar} onOpenEditarOpp={openEditarOpp} onOpenNuevaTask={openNuevaTask} onOpenSeguimientoTask={openSeguimientoTask} onOpenLograrTask={openLograrTask} onOpenEliminarTask={openEliminarTask} onOpenEditarTask={openEditarTask} onOpenEditarFollowup={openEditarFollowup} expandedWorkers={expandedWorkers} toggleWorker={toggleWorker} expandedOpps={expandedOpps} toggleOpp={toggleOpp} expandedTasks={expandedTasks} toggleTask={toggleTask} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {screen === 'historial' && <HistorialScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenDetalle={openDetalle} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {screen === 'notificaciones' && <NotificacionesScreen tasks={tasks} opportunities={myOpportunities} allEmployees={activeEmps} onOpenInTrabajadores={goToTaskInTrabajadores} />}
         {screen === 'config' && isAdmin && <ConfigScreen employees={employees} categories={categories} onEmployeesUpdated={loadEmployees} onAssignmentsUpdated={loadAssignments} onCategoriesUpdated={loadCategories} />}
@@ -1173,14 +1227,8 @@ export default function App() {
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          {categories.find(c => c.id === fCategory)?.name === 'Proyectos' && (
-            <div className="form-group"><label>Título del proyecto</label>
-              <input className="form-input" placeholder="Ej: Rediseño del catálogo de productos" value={fTitle} onChange={e => setFTitle(e.target.value)} />
-            </div>
-          )}
-          <div className="form-group"><label>Descripción {categories.find(c => c.id === fCategory)?.name === 'Proyectos' ? 'general del proyecto' : 'de la oportunidad'}</label>
-            <textarea className="form-textarea" placeholder="Describe la oportunidad de mejora con suficiente detalle..." value={fDesc} onChange={e => setFDesc(e.target.value)} />
-            <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>{fDesc.trim().length} caracteres · mínimo 10</div>
+          <div className="form-group"><label>{categories.find(c => c.id === fCategory)?.name === 'Proyectos' ? 'Nombre del proyecto' : 'Nombre de la oportunidad'}</label>
+            <input className="form-input" placeholder={categories.find(c => c.id === fCategory)?.name === 'Proyectos' ? 'Ej: Rediseño del catálogo de productos' : 'Ej: Mejorar puntualidad en reuniones'} value={fTitle} onChange={e => setFTitle(e.target.value)} />
           </div>
           {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
@@ -1198,11 +1246,8 @@ export default function App() {
             <div className="modal-context-label">Proyecto</div>
             <div className="modal-context-text">{activeOpp.title}</div>
           </div>
-          <div className="form-group"><label>Título de la tarea</label>
+          <div className="form-group"><label>Nombre de la tarea</label>
             <input className="form-input" placeholder="Ej: Subir fotos de productos" value={fTaskTitle} onChange={e => setFTaskTitle(e.target.value)} />
-          </div>
-          <div className="form-group"><label>Descripción (opcional)</label>
-            <textarea className="form-textarea" placeholder="Detalles de la tarea..." value={fTaskDesc} onChange={e => setFTaskDesc(e.target.value)} />
           </div>
           <div className="form-group"><label>Fecha límite (opcional)</label>
             <input type="date" className="form-input" value={fTaskDue} onChange={e => setFTaskDue(e.target.value)} />
@@ -1281,13 +1326,8 @@ export default function App() {
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          {categories.find(c => c.id === fEditCategory)?.name === 'Proyectos' && (
-            <div className="form-group"><label>Título del proyecto</label>
-              <input className="form-input" value={fEditTitle} onChange={e => setFEditTitle(e.target.value)} />
-            </div>
-          )}
-          <div className="form-group"><label>Descripción</label>
-            <textarea className="form-textarea" value={fEditDesc} onChange={e => setFEditDesc(e.target.value)} />
+          <div className="form-group"><label>{categories.find(c => c.id === fEditCategory)?.name === 'Proyectos' ? 'Nombre del proyecto' : 'Nombre de la oportunidad'}</label>
+            <input className="form-input" value={fEditTitle} onChange={e => setFEditTitle(e.target.value)} />
           </div>
           {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
@@ -1301,14 +1341,26 @@ export default function App() {
       {modal === 'editarTask' && editTarget && (
         <Modal onClose={closeModal}>
           <div className="modal-title">Editar tarea</div>
-          <div className="form-group"><label>Título de la tarea</label>
+          <div className="form-group"><label>Nombre de la tarea</label>
             <input className="form-input" value={fEditTitle} onChange={e => setFEditTitle(e.target.value)} />
-          </div>
-          <div className="form-group"><label>Descripción</label>
-            <textarea className="form-textarea" value={fEditDesc} onChange={e => setFEditDesc(e.target.value)} />
           </div>
           <div className="form-group"><label>Fecha límite (opcional)</label>
             <input type="date" className="form-input" value={fEditDue} onChange={e => setFEditDue(e.target.value)} />
+          </div>
+          {formError && <div className="error-msg">{formError}</div>}
+          <div className="modal-actions">
+            <button className="btn-secondary" onClick={closeModal}>Cancelar</button>
+            <button className="btn-primary" onClick={guardarEdicion} style={{ flex: 1 }}>Guardar cambios</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL: EDITAR SEGUIMIENTO */}
+      {modal === 'editarFollowup' && editTarget && (
+        <Modal onClose={closeModal}>
+          <div className="modal-title">Editar seguimiento</div>
+          <div className="form-group"><label>Observación</label>
+            <textarea className="form-textarea" value={fObs} onChange={e => setFObs(e.target.value)} />
           </div>
           {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
@@ -1324,7 +1376,7 @@ export default function App() {
           <div className="modal-title">Agregar seguimiento</div>
           <div className="modal-context">
             <div className="modal-context-label">Oportunidad</div>
-            <div className="modal-context-text">{activeOpp.description}</div>
+            <div className="modal-context-text">{activeOpp.title || activeOpp.description}</div>
             <div className="modal-context-meta">Colaborador: {activeEmp?.name || '—'}</div>
           </div>
           <div className="form-group"><label>Observación</label>
@@ -1344,7 +1396,7 @@ export default function App() {
           <div className="modal-title">Marcar como Logrado</div>
           <div className="modal-context">
             <div className="modal-context-label">Oportunidad</div>
-            <div className="modal-context-text">{activeOpp.description}</div>
+            <div className="modal-context-text">{activeOpp.title || activeOpp.description}</div>
             <div className="modal-context-meta">Colaborador: {activeEmp?.name || '—'}</div>
           </div>
           <div className="form-group"><label>Observación final (opcional)</label>
@@ -1377,7 +1429,7 @@ export default function App() {
           <div className="modal-title">¿Eliminar esta oportunidad?</div>
           <div className="modal-context">
             <div className="modal-context-label">Oportunidad</div>
-            <div className="modal-context-text">{activeOpp.description}</div>
+            <div className="modal-context-text">{activeOpp.title || activeOpp.description}</div>
             <div className="modal-context-meta">Colaborador: {activeEmp?.name || '—'}</div>
           </div>
           <div style={{ fontSize: 14, color: '#666', lineHeight: 1.6, marginBottom: 20, background: '#fff3f3', padding: 16, borderRadius: 10, borderLeft: '4px solid #D64545' }}>
@@ -1398,7 +1450,6 @@ export default function App() {
             <span className="badge badge-green">Logrado</span>
           </div>
           {(() => { const cat = categories.find(c => c.id === activeOpp.category_id); return cat ? <div style={{ marginBottom: 12 }}><span className="cat-badge" style={{ background: cat.color + '20', color: cat.color, borderLeft: `3px solid ${cat.color}` }}>{cat.name}</span></div> : null; })()}
-          {activeOpp.title && <div style={{ fontSize: 14, color: '#555', marginBottom: 12, whiteSpace: 'pre-wrap' }}>{activeOpp.description}</div>}
           <div style={{ display: 'flex', gap: 12, marginBottom: 16, fontSize: 13, color: '#888', flexWrap: 'wrap' }}>
             <span>Colaborador: <strong>{activeEmp?.name}</strong></span><span>·</span>
             <span>Creada: {fmtDate(activeOpp.created_at)}</span><span>·</span>

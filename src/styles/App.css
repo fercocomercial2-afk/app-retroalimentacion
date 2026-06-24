@@ -260,3 +260,6 @@ body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; b
 .task-alert { color: #D64545; font-weight: 700; }
 .btn-add-task { display: flex; align-items: center; gap: 6px; background: none; border: 1.5px dashed #bbb; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; color: #666; cursor: pointer; margin-top: 4px; width: 100%; justify-content: center; transition: all 0.2s; }
 .btn-add-task:hover { border-color: #2C8B5D; color: #2C8B5D; background: #f0fff4; }
+
+/* ==================== DASHBOARD KPI LABEL (Oportunidades/Proyectos) ==================== */
+.dash-kpi-label { font-size: 11px; font-weight: 700; color: #999; letter-spacing: 0.6px; margin-bottom: 8px; }
