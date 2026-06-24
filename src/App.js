@@ -480,7 +480,7 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                         <div className="opp-row-body">
                           <div className="opp-meta">
                             <span>Creada {fmtDate(opp.created_at)} · hace {daysAgo} día{daysAgo !== 1 ? 's' : ''}</span>
-                            <span>{lastFu ? `Último seg. ${fmtDate(lastFu.created_at)} · hace ${lastFuDays} día${lastFuDays !== 1 ? 's' : ''}` : 'Sin seguimientos aún'}</span>
+                            {lastFu && <span>Último seg. {fmtDate(lastFu.created_at)} · hace {lastFuDays} día{lastFuDays !== 1 ? 's' : ''}</span>}
                           </div>
                           {oppFollowups.length > 0 && (
                             <div className="followup-list">
@@ -504,7 +504,7 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                           {/* Solo mostrar botones si es "Mis Trabajadores" o admin */}
                           {(adminView !== 'all') && (
                             <div className="opp-actions">
-                              <button className="btn-seg" onClick={() => onOpenSeguimiento(opp)}>Seguimiento</button>
+                              {(!isProyecto || oppTasks.length === 0) && <button className="btn-seg" onClick={() => onOpenSeguimiento(opp)}>Seguimiento</button>}
                               {isProyecto && <button className="btn-seg" onClick={() => onOpenNuevaTask(opp)}>+ Tarea</button>}
                               {!isProyecto && <button className="btn-lograr" onClick={() => onOpenLograr(opp)}>Logrado</button>}
                               {isProyecto && (
@@ -517,12 +517,10 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                           )}
 
                           {/* SECCIÓN DE TAREAS (solo Proyectos) */}
-                          {isProyecto && (
+                          {isProyecto && oppTasks.length > 0 && (
                             <div className="tasks-section">
-                              <div className="tasks-section-title">TAREAS {oppTasks.length > 0 && `(${tasksLogradas} de ${oppTasks.length} completadas)`}</div>
-                              {oppTasks.length === 0 ? (
-                                <div style={{ fontSize: 13, color: '#aaa', padding: '8px 0' }}>Aún no hay tareas en este proyecto.</div>
-                              ) : oppTasks.map(task => {
+                              <div className="tasks-section-title">TAREAS ({tasksLogradas} de {oppTasks.length} completadas)</div>
+                              {oppTasks.map(task => {
                                 const taskFollowups = followups.filter(f => f.task_id === task.id);
                                 const isTaskExpanded = expandedTasks[task.id];
                                 const isPendiente = task.status === 'pendiente';
@@ -537,14 +535,16 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                                       <span className="task-check">{task.status === 'logrado' ? '☑' : '☐'}</span>
                                       <div style={{ flex: 1 }}>
                                         <div className="task-title">{task.title}{isVencida && <span className="task-alert"> ⚠️ Vencida</span>}{isHoy && <span className="task-alert"> ⚠️ Vence hoy</span>}</div>
-                                        <div className="task-meta">
-                                          {task.due_date && <span>Vence: {fmtDate(task.due_date)} · </span>}
-                                          {taskFollowups.length > 0 ? (
-                                            <button className="followup-toggle" style={{ display: 'inline', padding: 0 }} onClick={() => toggleTask(task.id)}>
-                                              {isTaskExpanded ? 'Ocultar seguimientos' : `${taskFollowups.length} seguimiento${taskFollowups.length > 1 ? 's' : ''}`}
-                                            </button>
-                                          ) : 'Sin seguimientos'}
-                                        </div>
+                                        {(task.due_date || taskFollowups.length > 0) && (
+                                          <div className="task-meta">
+                                            {task.due_date && <span>Vence: {fmtDate(task.due_date)}{taskFollowups.length > 0 ? ' · ' : ''}</span>}
+                                            {taskFollowups.length > 0 && (
+                                              <button className="followup-toggle" style={{ display: 'inline', padding: 0 }} onClick={() => toggleTask(task.id)}>
+                                                {isTaskExpanded ? 'Ocultar seguimientos' : `${taskFollowups.length} seguimiento${taskFollowups.length > 1 ? 's' : ''}`}
+                                              </button>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
                                       {(adminView !== 'all') && (
                                         <button className="btn-editar" onClick={() => onOpenEditarTask(opp, task)} title="Editar tarea">
@@ -688,8 +688,10 @@ function getNotifications(tasks, opportunities, allEmployees) {
   return list.sort((a, b) => a.diffDays - b.diffDays);
 }
 
-function NotificacionesScreen({ tasks, opportunities, allEmployees, onOpenInTrabajadores }) {
-  const notifs = getNotifications(tasks, opportunities, allEmployees);
+function NotificacionesScreen({ myTasks, myOpportunities, allTasks, allOpportunities, allEmployees, isAdmin, adminView, setAdminView, onOpenInTrabajadores }) {
+  const tasksToUse = adminView === 'all' ? allTasks : myTasks;
+  const oppsToUse = adminView === 'all' ? allOpportunities : myOpportunities;
+  const notifs = getNotifications(tasksToUse, oppsToUse, allEmployees);
 
   return (
     <div>
@@ -698,8 +700,10 @@ function NotificacionesScreen({ tasks, opportunities, allEmployees, onOpenInTrab
         <p className="page-subtitle">Tareas vencidas o que vencen hoy</p>
       </div>
 
+      <AdminViewToggle view={adminView} setView={setAdminView} isAdmin={isAdmin} />
+
       {notifs.length === 0 ? (
-        <div className="empty-state">🎉 No tienes tareas vencidas ni que venzan hoy.</div>
+        <div className="empty-state">🎉 No hay tareas vencidas ni que venzan hoy.</div>
       ) : (
         <div className="hist-list">
           {notifs.map(n => (
@@ -1195,7 +1199,10 @@ export default function App() {
 
   const activeEmp = activeOpp ? employees.find(e => e.id === activeOpp.employee_id) : null;
   const myTaskOppIds = new Set(myOpportunities.map(o => o.id));
-  const myNotifs = getNotifications(tasks.filter(t => myTaskOppIds.has(t.opportunity_id)), myOpportunities, activeEmps);
+  const allTaskOppIds = new Set(allOpportunities.map(o => o.id));
+  const myTasksList = tasks.filter(t => myTaskOppIds.has(t.opportunity_id));
+  const allTasksList = tasks.filter(t => allTaskOppIds.has(t.opportunity_id));
+  const myNotifs = getNotifications(myTasksList, myOpportunities, activeEmps);
 
   const goToTaskInTrabajadores = (opp, task) => {
     setScreen('trabajadores');
@@ -1211,7 +1218,7 @@ export default function App() {
         {screen === 'dashboard' && <DashboardScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} categories={categories} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} tasks={tasks} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenEliminar={openEliminar} onOpenEditarOpp={openEditarOpp} onOpenNuevaTask={openNuevaTask} onOpenSeguimientoTask={openSeguimientoTask} onOpenLograrTask={openLograrTask} onOpenEliminarTask={openEliminarTask} onOpenEditarTask={openEditarTask} onOpenEditarFollowup={openEditarFollowup} expandedWorkers={expandedWorkers} toggleWorker={toggleWorker} expandedOpps={expandedOpps} toggleOpp={toggleOpp} expandedTasks={expandedTasks} toggleTask={toggleTask} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {screen === 'historial' && <HistorialScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenDetalle={openDetalle} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
-        {screen === 'notificaciones' && <NotificacionesScreen tasks={tasks} opportunities={myOpportunities} allEmployees={activeEmps} onOpenInTrabajadores={goToTaskInTrabajadores} />}
+        {screen === 'notificaciones' && <NotificacionesScreen myTasks={myTasksList} myOpportunities={myOpportunities} allTasks={allTasksList} allOpportunities={allOpportunities} allEmployees={activeEmps} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenInTrabajadores={goToTaskInTrabajadores} />}
         {screen === 'config' && isAdmin && <ConfigScreen employees={employees} categories={categories} onEmployeesUpdated={loadEmployees} onAssignmentsUpdated={loadAssignments} onCategoriesUpdated={loadCategories} />}
         {screen === 'config' && !isAdmin && <div className="error-msg">No tienes acceso a esta sección</div>}
       </main>
