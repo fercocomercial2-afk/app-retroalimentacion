@@ -458,123 +458,129 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
 
                   return (
                     <div key={opp.id} className="opp-card">
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          {cat && <span className="cat-badge" style={{ background: cat.color + '20', color: cat.color, borderLeft: `3px solid ${cat.color}` }}>{cat.name}</span>}
+                      <div className="opp-row-header" onClick={() => toggleOpp(opp.id)}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                          {cat && <span className="cat-badge" style={{ background: cat.color + '20', color: cat.color, borderLeft: `3px solid ${cat.color}`, flexShrink: 0 }}>{cat.name}</span>}
+                          <span className="opp-name-line">
+                            {opp.title || opp.description}
+                            {hasAlert && <span className="task-alert" title="Hay tareas vencidas o que vencen hoy"> ⚠️</span>}
+                          </span>
                         </div>
-                        {(adminView !== 'all') && (
-                          <button className="btn-editar" onClick={() => onOpenEditarOpp(opp)} title="Editar">
-                            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="opp-desc">
-                        {opp.title || opp.description}
-                        {hasAlert && <span className="task-alert" title="Hay tareas vencidas o que vencen hoy"> ⚠️</span>}
-                      </div>
-                      <div className="opp-meta">
-                        <span>Creada {fmtDate(opp.created_at)} · hace {daysAgo} día{daysAgo !== 1 ? 's' : ''}</span>
-                        <span>{lastFu ? `Último seg. ${fmtDate(lastFu.created_at)} · hace ${lastFuDays} día${lastFuDays !== 1 ? 's' : ''}` : 'Sin seguimientos aún'}</span>
-                      </div>
-                      {oppFollowups.length > 0 && (
-                        <button className="followup-toggle" onClick={() => toggleOpp(opp.id)}>
-                          {isOppExpanded ? 'Ocultar seguimientos' : `Ver ${oppFollowups.length} seguimiento${oppFollowups.length > 1 ? 's' : ''}`}
-                        </button>
-                      )}
-                      {isOppExpanded && oppFollowups.map(fu => (
-                        <div key={fu.id} className="followup-item">
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
-                            <div style={{ flex: 1 }}>
-                              <div className="followup-date">{fmtDate(fu.created_at)}</div>
-                              <div className="followup-text"><ExpandableText text={fu.observation} limit={200} /></div>
-                            </div>
-                            {(adminView !== 'all') && (
-                              <button className="btn-editar" onClick={() => onOpenEditarFollowup(fu)} title="Editar seguimiento">
-                                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      {/* Solo mostrar botones si es "Mis Trabajadores" o admin */}
-                      {(adminView !== 'all') && (
-                        <div className="opp-actions">
-                          <button className="btn-seg" onClick={() => onOpenSeguimiento(opp)}>Seguimiento</button>
-                          {isProyecto && <button className="btn-seg" onClick={() => onOpenNuevaTask(opp)}>+ Tarea</button>}
-                          {!isProyecto && <button className="btn-lograr" onClick={() => onOpenLograr(opp)}>Logrado</button>}
-                          {isProyecto && (
-                            <button className="btn-lograr" disabled={tasksPendientes > 0} title={tasksPendientes > 0 ? 'No puedes cerrar el proyecto: aún hay tareas pendientes' : ''} onClick={() => tasksPendientes === 0 && onOpenLograr(opp)}>Logrado</button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                          {(adminView !== 'all') && (
+                            <button className="btn-editar" onClick={(e) => { e.stopPropagation(); onOpenEditarOpp(opp); }} title="Editar">
+                              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
                           )}
-                          <button className="btn-eliminar" onClick={() => onOpenEliminar(opp)} title="Eliminar oportunidad">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/></svg>
-                          </button>
+                          <svg width="16" height="16" fill="none" stroke="#aaa" strokeWidth="2" style={{ transform: isOppExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}><path d="M4 7l5 5 5-5"/></svg>
                         </div>
-                      )}
+                      </div>
 
-                      {/* SECCIÓN DE TAREAS (solo Proyectos) */}
-                      {isProyecto && (
-                        <div className="tasks-section">
-                          <div className="tasks-section-title">TAREAS {oppTasks.length > 0 && `(${tasksLogradas} de ${oppTasks.length} completadas)`}</div>
-                          {oppTasks.length === 0 ? (
-                            <div style={{ fontSize: 13, color: '#aaa', padding: '8px 0' }}>Aún no hay tareas en este proyecto.</div>
-                          ) : oppTasks.map(task => {
-                            const taskFollowups = followups.filter(f => f.task_id === task.id);
-                            const isTaskExpanded = expandedTasks[task.id];
-                            const isPendiente = task.status === 'pendiente';
-                            const today = new Date(); today.setHours(0,0,0,0);
-                            const due = task.due_date ? new Date(task.due_date + 'T00:00:00') : null;
-                            const isVencida = isPendiente && due && due < today;
-                            const isHoy = isPendiente && due && due.getTime() === today.getTime();
-
-                            return (
-                              <div key={task.id} className={`task-card ${task.status === 'logrado' ? 'task-done' : ''}`}>
-                                <div className="task-header">
-                                  <span className="task-check">{task.status === 'logrado' ? '☑' : '☐'}</span>
-                                  <div style={{ flex: 1 }}>
-                                    <div className="task-title">{task.title}{isVencida && <span className="task-alert"> ⚠️ Vencida</span>}{isHoy && <span className="task-alert"> ⚠️ Vence hoy</span>}</div>
-                                    <div className="task-meta">
-                                      {task.due_date && <span>Vence: {fmtDate(task.due_date)} · </span>}
-                                      {taskFollowups.length > 0 ? (
-                                        <button className="followup-toggle" style={{ display: 'inline', padding: 0 }} onClick={() => toggleTask(task.id)}>
-                                          {isTaskExpanded ? 'Ocultar seguimientos' : `${taskFollowups.length} seguimiento${taskFollowups.length > 1 ? 's' : ''}`}
-                                        </button>
-                                      ) : 'Sin seguimientos'}
+                      {isOppExpanded && (
+                        <div className="opp-row-body">
+                          <div className="opp-meta">
+                            <span>Creada {fmtDate(opp.created_at)} · hace {daysAgo} día{daysAgo !== 1 ? 's' : ''}</span>
+                            <span>{lastFu ? `Último seg. ${fmtDate(lastFu.created_at)} · hace ${lastFuDays} día${lastFuDays !== 1 ? 's' : ''}` : 'Sin seguimientos aún'}</span>
+                          </div>
+                          {oppFollowups.length > 0 && (
+                            <div className="followup-list">
+                              {oppFollowups.map(fu => (
+                                <div key={fu.id} className="followup-item">
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                                    <div style={{ flex: 1 }}>
+                                      <div className="followup-date">{fmtDate(fu.created_at)}</div>
+                                      <div className="followup-text"><ExpandableText text={fu.observation} limit={200} /></div>
                                     </div>
+                                    {(adminView !== 'all') && (
+                                      <button className="btn-editar" onClick={() => onOpenEditarFollowup(fu)} title="Editar seguimiento">
+                                        <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                      </button>
+                                    )}
                                   </div>
-                                  {(adminView !== 'all') && (
-                                    <button className="btn-editar" onClick={() => onOpenEditarTask(opp, task)} title="Editar tarea">
-                                      <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                    </button>
-                                  )}
                                 </div>
-                                {isTaskExpanded && taskFollowups.map(fu => (
-                                  <div key={fu.id} className="followup-item" style={{ marginLeft: 26 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                              ))}
+                            </div>
+                          )}
+                          {/* Solo mostrar botones si es "Mis Trabajadores" o admin */}
+                          {(adminView !== 'all') && (
+                            <div className="opp-actions">
+                              <button className="btn-seg" onClick={() => onOpenSeguimiento(opp)}>Seguimiento</button>
+                              {isProyecto && <button className="btn-seg" onClick={() => onOpenNuevaTask(opp)}>+ Tarea</button>}
+                              {!isProyecto && <button className="btn-lograr" onClick={() => onOpenLograr(opp)}>Logrado</button>}
+                              {isProyecto && (
+                                <button className="btn-lograr" disabled={tasksPendientes > 0} title={tasksPendientes > 0 ? 'No puedes cerrar el proyecto: aún hay tareas pendientes' : ''} onClick={() => tasksPendientes === 0 && onOpenLograr(opp)}>Logrado</button>
+                              )}
+                              <button className="btn-eliminar" onClick={() => onOpenEliminar(opp)} title="Eliminar oportunidad">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/></svg>
+                              </button>
+                            </div>
+                          )}
+
+                          {/* SECCIÓN DE TAREAS (solo Proyectos) */}
+                          {isProyecto && (
+                            <div className="tasks-section">
+                              <div className="tasks-section-title">TAREAS {oppTasks.length > 0 && `(${tasksLogradas} de ${oppTasks.length} completadas)`}</div>
+                              {oppTasks.length === 0 ? (
+                                <div style={{ fontSize: 13, color: '#aaa', padding: '8px 0' }}>Aún no hay tareas en este proyecto.</div>
+                              ) : oppTasks.map(task => {
+                                const taskFollowups = followups.filter(f => f.task_id === task.id);
+                                const isTaskExpanded = expandedTasks[task.id];
+                                const isPendiente = task.status === 'pendiente';
+                                const today = new Date(); today.setHours(0,0,0,0);
+                                const due = task.due_date ? new Date(task.due_date + 'T00:00:00') : null;
+                                const isVencida = isPendiente && due && due < today;
+                                const isHoy = isPendiente && due && due.getTime() === today.getTime();
+
+                                return (
+                                  <div key={task.id} className={`task-card ${task.status === 'logrado' ? 'task-done' : ''}`}>
+                                    <div className="task-header">
+                                      <span className="task-check">{task.status === 'logrado' ? '☑' : '☐'}</span>
                                       <div style={{ flex: 1 }}>
-                                        <div className="followup-date">{fmtDate(fu.created_at)}</div>
-                                        <div className="followup-text"><ExpandableText text={fu.observation} limit={200} /></div>
+                                        <div className="task-title">{task.title}{isVencida && <span className="task-alert"> ⚠️ Vencida</span>}{isHoy && <span className="task-alert"> ⚠️ Vence hoy</span>}</div>
+                                        <div className="task-meta">
+                                          {task.due_date && <span>Vence: {fmtDate(task.due_date)} · </span>}
+                                          {taskFollowups.length > 0 ? (
+                                            <button className="followup-toggle" style={{ display: 'inline', padding: 0 }} onClick={() => toggleTask(task.id)}>
+                                              {isTaskExpanded ? 'Ocultar seguimientos' : `${taskFollowups.length} seguimiento${taskFollowups.length > 1 ? 's' : ''}`}
+                                            </button>
+                                          ) : 'Sin seguimientos'}
+                                        </div>
                                       </div>
                                       {(adminView !== 'all') && (
-                                        <button className="btn-editar" onClick={() => onOpenEditarFollowup(fu)} title="Editar seguimiento">
-                                          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                        <button className="btn-editar" onClick={() => onOpenEditarTask(opp, task)} title="Editar tarea">
+                                          <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                         </button>
                                       )}
                                     </div>
+                                    {isTaskExpanded && taskFollowups.map(fu => (
+                                      <div key={fu.id} className="followup-item" style={{ marginLeft: 26 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                                          <div style={{ flex: 1 }}>
+                                            <div className="followup-date">{fmtDate(fu.created_at)}</div>
+                                            <div className="followup-text"><ExpandableText text={fu.observation} limit={200} /></div>
+                                          </div>
+                                          {(adminView !== 'all') && (
+                                            <button className="btn-editar" onClick={() => onOpenEditarFollowup(fu)} title="Editar seguimiento">
+                                              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                    {(adminView !== 'all') && isPendiente && (
+                                      <div className="opp-actions" style={{ marginLeft: 26, marginTop: 8 }}>
+                                        <button className="btn-seg" onClick={() => onOpenSeguimientoTask(opp, task)}>Seguimiento</button>
+                                        <button className="btn-lograr" onClick={() => onOpenLograrTask(opp, task)}>Logrado</button>
+                                        <button className="btn-eliminar" onClick={() => onOpenEliminarTask(opp, task)} title="Eliminar tarea">
+                                          <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/></svg>
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
-                                ))}
-                                {(adminView !== 'all') && isPendiente && (
-                                  <div className="opp-actions" style={{ marginLeft: 26, marginTop: 8 }}>
-                                    <button className="btn-seg" onClick={() => onOpenSeguimientoTask(opp, task)}>Seguimiento</button>
-                                    <button className="btn-lograr" onClick={() => onOpenLograrTask(opp, task)}>Logrado</button>
-                                    <button className="btn-eliminar" onClick={() => onOpenEliminarTask(opp, task)} title="Eliminar tarea">
-                                      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/></svg>
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

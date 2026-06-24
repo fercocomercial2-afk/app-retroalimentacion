@@ -135,7 +135,7 @@ body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; b
 .worker-opps { border-top: 1px solid #f0f0f0; }
 
 /* ==================== OPPORTUNITY CARDS ==================== */
-.opp-card { padding: 20px 24px; border-bottom: 1px solid #f5f5f5; }
+.opp-card { padding: 12px 24px; border-bottom: 1px solid #f5f5f5; }
 .opp-card:last-child { border-bottom: none; }
 .opp-desc { font-size: 14px; font-weight: 600; color: #1C2421; line-height: 1.5; margin-bottom: 8px; }
 .opp-meta { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #999; margin-bottom: 10px; }
@@ -263,3 +263,9 @@ body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; b
 
 /* ==================== DASHBOARD KPI LABEL (Oportunidades/Proyectos) ==================== */
 .dash-kpi-label { font-size: 11px; font-weight: 700; color: #999; letter-spacing: 0.6px; margin-bottom: 8px; }
+
+/* ==================== OPORTUNIDAD COLAPSABLE (solo nombre visible) ==================== */
+.opp-row-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; padding: 4px 0; }
+.opp-name-line { font-size: 14px; font-weight: 600; color: #1C2421; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opp-row-body { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f0f0; }
+.followup-list { margin-bottom: 4px; }
