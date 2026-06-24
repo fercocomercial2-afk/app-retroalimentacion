@@ -106,12 +106,13 @@ function LoginScreen({ onLogin }) {
 /* ================================================================
    SIDEBAR - Ahora muestra ¡Hola Nombre!
    ================================================================ */
-function Sidebar({ user, screen, setScreen, isAdmin, onLogout, managerName }) {
+function Sidebar({ user, screen, setScreen, isAdmin, onLogout, managerName, notifCount }) {
   const name = managerName || user?.email?.split('@')[0] || '';
   const items = [
     { id: 'dashboard', icon: '📊', label: 'Dashboard' },
     { id: 'trabajadores', icon: '👥', label: 'Mis Trabajadores' },
     { id: 'historial', icon: '🕐', label: 'Historial' },
+    { id: 'notificaciones', icon: '🔔', label: 'Notificaciones' },
   ];
   if (isAdmin) items.push({ id: 'config', icon: '⚙️', label: 'Configuración' });
 
@@ -127,6 +128,7 @@ function Sidebar({ user, screen, setScreen, isAdmin, onLogout, managerName }) {
         {items.map(i => (
           <button key={i.id} className={`sidebar-btn ${screen === i.id ? 'active' : ''}`} onClick={() => setScreen(i.id)}>
             <span className="sidebar-btn-icon">{i.icon}</span><span>{i.label}</span>
+            {i.id === 'notificaciones' && notifCount > 0 && <span className="sidebar-badge">{notifCount}</span>}
           </button>
         ))}
       </nav>
@@ -211,6 +213,26 @@ function Modal({ children, onClose }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>{children}</div>
     </div>
+  );
+}
+
+/* ================================================================
+   TEXTO EXPANDIBLE ("Ver más...") — respeta saltos de línea
+   ================================================================ */
+function ExpandableText({ text, limit = 150, className = '' }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!text) return null;
+  const isLong = text.length > limit;
+  const shown = expanded || !isLong ? text : text.slice(0, limit).trimEnd() + '…';
+  return (
+    <span className={className}>
+      <span style={{ whiteSpace: 'pre-wrap' }}>{shown}</span>
+      {isLong && (
+        <button onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }} style={{ background: 'none', border: 'none', color: '#1F6FB2', fontWeight: 600, fontSize: 12, cursor: 'pointer', marginLeft: 6, padding: 0 }}>
+          {expanded ? 'Ver menos' : 'Ver más'}
+        </button>
+      )}
+    </span>
   );
 }
 
@@ -301,7 +323,7 @@ function DashboardScreen({ myReports, allEmployees, opportunities, allOpportunit
 /* ================================================================
    MIS TRABAJADORES (+ Vista "Todos" para admins)
    ================================================================ */
-function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportunities, followups, categories, onOpenNueva, onOpenSeguimiento, onOpenLograr, onOpenEliminar, expandedWorkers, toggleWorker, expandedOpps, toggleOpp, isAdmin, adminView, setAdminView }) {
+function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportunities, followups, categories, tasks, onOpenNueva, onOpenSeguimiento, onOpenLograr, onOpenEliminar, onOpenEditarOpp, onOpenNuevaTask, onOpenSeguimientoTask, onOpenLograrTask, onOpenEliminarTask, onOpenEditarTask, expandedWorkers, toggleWorker, expandedOpps, toggleOpp, expandedTasks, toggleTask, isAdmin, adminView, setAdminView }) {
   const [segFilter, setSegFilter] = useState('all'); // 'all', 'con', 'sin' (solo en vista "todos")
   const [catFilter, setCatFilter] = useState('all');
 
@@ -397,13 +419,25 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                   const lastFuDays = lastFu ? daysBetween(lastFu.created_at, new Date()) : null;
                   const isOppExpanded = expandedOpps[opp.id];
                   const cat = categories.find(c => c.id === opp.category_id);
+                  const isProyecto = cat?.name === 'Proyectos';
+                  const oppTasks = isProyecto ? tasks.filter(t => t.opportunity_id === opp.id) : [];
+                  const tasksLogradas = oppTasks.filter(t => t.status === 'logrado').length;
 
                   return (
                     <div key={opp.id} className="opp-card">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        {cat && <span className="cat-badge" style={{ background: cat.color + '20', color: cat.color, borderLeft: `3px solid ${cat.color}` }}>{cat.name}</span>}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {cat && <span className="cat-badge" style={{ background: cat.color + '20', color: cat.color, borderLeft: `3px solid ${cat.color}` }}>{cat.name}</span>}
+                        </div>
+                        {(adminView !== 'all') && (
+                          <button className="btn-editar" onClick={() => onOpenEditarOpp(opp)} title="Editar">
+                            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                          </button>
+                        )}
                       </div>
-                      <div className="opp-desc">{opp.description}</div>
+
+                      {isProyecto && opp.title && <div className="opp-title">{opp.title}</div>}
+                      <div className="opp-desc"><ExpandableText text={opp.description} /></div>
                       <div className="opp-meta">
                         <span>Creada {fmtDate(opp.created_at)} · hace {daysAgo} día{daysAgo !== 1 ? 's' : ''}</span>
                         <span>{lastFu ? `Último seg. ${fmtDate(lastFu.created_at)} · hace ${lastFuDays} día${lastFuDays !== 1 ? 's' : ''}` : 'Sin seguimientos aún'}</span>
@@ -416,17 +450,81 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                       {isOppExpanded && oppFollowups.map(fu => (
                         <div key={fu.id} className="followup-item">
                           <div className="followup-date">{fmtDate(fu.created_at)}</div>
-                          <div className="followup-text">{fu.observation}</div>
+                          <div className="followup-text"><ExpandableText text={fu.observation} limit={200} /></div>
                         </div>
                       ))}
                       {/* Solo mostrar botones si es "Mis Trabajadores" o admin */}
                       {(adminView !== 'all') && (
                         <div className="opp-actions">
                           <button className="btn-seg" onClick={() => onOpenSeguimiento(opp)}>Seguimiento</button>
-                          <button className="btn-lograr" onClick={() => onOpenLograr(opp)}>Logrado</button>
+                          {!isProyecto && <button className="btn-lograr" onClick={() => onOpenLograr(opp)}>Logrado</button>}
                           <button className="btn-eliminar" onClick={() => onOpenEliminar(opp)} title="Eliminar oportunidad">
                             <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/></svg>
                           </button>
+                        </div>
+                      )}
+
+                      {/* SECCIÓN DE TAREAS (solo Proyectos) */}
+                      {isProyecto && (
+                        <div className="tasks-section">
+                          <div className="tasks-section-title">TAREAS {oppTasks.length > 0 && `(${tasksLogradas} de ${oppTasks.length} completadas)`}</div>
+                          {oppTasks.length === 0 ? (
+                            <div style={{ fontSize: 13, color: '#aaa', padding: '8px 0' }}>Aún no hay tareas en este proyecto.</div>
+                          ) : oppTasks.map(task => {
+                            const taskFollowups = followups.filter(f => f.task_id === task.id);
+                            const isTaskExpanded = expandedTasks[task.id];
+                            const isPendiente = task.status === 'pendiente';
+                            const today = new Date(); today.setHours(0,0,0,0);
+                            const due = task.due_date ? new Date(task.due_date + 'T00:00:00') : null;
+                            const isVencida = isPendiente && due && due < today;
+                            const isHoy = isPendiente && due && due.getTime() === today.getTime();
+
+                            return (
+                              <div key={task.id} className={`task-card ${task.status === 'logrado' ? 'task-done' : ''}`}>
+                                <div className="task-header">
+                                  <span className="task-check">{task.status === 'logrado' ? '☑' : '☐'}</span>
+                                  <div style={{ flex: 1 }}>
+                                    <div className="task-title">{task.title}{isVencida && <span className="task-alert"> ⚠️ Vencida</span>}{isHoy && <span className="task-alert"> ⚠️ Vence hoy</span>}</div>
+                                    {task.description && <div className="task-desc"><ExpandableText text={task.description} limit={120} /></div>}
+                                    <div className="task-meta">
+                                      {task.due_date && <span>Vence: {fmtDate(task.due_date)} · </span>}
+                                      {taskFollowups.length > 0 ? (
+                                        <button className="followup-toggle" style={{ display: 'inline', padding: 0 }} onClick={() => toggleTask(task.id)}>
+                                          {isTaskExpanded ? 'Ocultar seguimientos' : `${taskFollowups.length} seguimiento${taskFollowups.length > 1 ? 's' : ''}`}
+                                        </button>
+                                      ) : 'Sin seguimientos'}
+                                    </div>
+                                  </div>
+                                  {(adminView !== 'all') && (
+                                    <button className="btn-editar" onClick={() => onOpenEditarTask(opp, task)} title="Editar tarea">
+                                      <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                    </button>
+                                  )}
+                                </div>
+                                {isTaskExpanded && taskFollowups.map(fu => (
+                                  <div key={fu.id} className="followup-item" style={{ marginLeft: 26 }}>
+                                    <div className="followup-date">{fmtDate(fu.created_at)}</div>
+                                    <div className="followup-text"><ExpandableText text={fu.observation} limit={200} /></div>
+                                  </div>
+                                ))}
+                                {(adminView !== 'all') && isPendiente && (
+                                  <div className="opp-actions" style={{ marginLeft: 26, marginTop: 8 }}>
+                                    <button className="btn-seg" onClick={() => onOpenSeguimientoTask(opp, task)}>Seguimiento</button>
+                                    <button className="btn-lograr" onClick={() => onOpenLograrTask(opp, task)}>Logrado</button>
+                                    <button className="btn-eliminar" onClick={() => onOpenEliminarTask(opp, task)} title="Eliminar tarea">
+                                      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/></svg>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {(adminView !== 'all') && (
+                            <button className="btn-add-task" onClick={() => onOpenNuevaTask(opp)}>
+                              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><line x1="7" y1="2" x2="7" y2="12"/><line x1="2" y1="7" x2="12" y2="7"/></svg>
+                              Agregar tarea
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -496,12 +594,13 @@ function HistorialScreen({ myReports, allEmployees, opportunities, allOpportunit
                   <div className="worker-avatar" style={{ background: color, flexShrink: 0, width: 36, height: 36, fontSize: 13 }}>{initials(emp?.name || '')}</div>
                   <div style={{ flex: 1 }}>
                     {(() => { const cat = categories.find(c => c.id === opp.category_id); return cat ? <span className="cat-badge" style={{ background: cat.color + '20', color: cat.color, borderLeft: `3px solid ${cat.color}`, marginBottom: 6 }}>{cat.name}</span> : null; })()}
-                    <div className="hist-desc">{opp.description}</div>
+                    {opp.title && <div className="opp-title">{opp.title}</div>}
+                    <div className="hist-desc"><ExpandableText text={opp.description} /></div>
                     <div className="hist-meta">
                       {emp?.name} · Creada {fmtDate(opp.created_at)} · Cerrada {fmtDate(opp.closed_at)} · {duration} días
                       {adminView === 'all' && emp?.manager_name && <span> · Jefe: {firstName(emp.manager_name)}</span>}
                     </div>
-                    <div className="hist-obs"><strong>Observación final:</strong> {opp.final_observation || 'Sin observación.'}</div>
+                    <div className="hist-obs"><strong>Observación final:</strong> <ExpandableText text={opp.final_observation || 'Sin observación.'} limit={200} /></div>
                     {oppFollowups.length > 0 && <div className="hist-followups">{oppFollowups.length} seguimiento{oppFollowups.length > 1 ? 's' : ''}</div>}
                   </div>
                   <div className="badge badge-green" style={{ alignSelf: 'flex-start', flexShrink: 0 }}>Logrado</div>
@@ -509,6 +608,61 @@ function HistorialScreen({ myReports, allEmployees, opportunities, allOpportunit
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ================================================================
+   NOTIFICACIONES
+   ================================================================ */
+function getNotifications(tasks, opportunities, allEmployees) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const list = [];
+  tasks.filter(t => t.status === 'pendiente' && t.due_date).forEach(t => {
+    const due = new Date(t.due_date + 'T00:00:00');
+    const opp = opportunities.find(o => o.id === t.opportunity_id);
+    if (!opp) return;
+    const emp = allEmployees.find(e => e.id === opp.employee_id);
+    const diffDays = Math.round((due - today) / 86400000);
+    if (diffDays <= 0) {
+      list.push({ id: t.id, task: t, opp, emp, diffDays, type: diffDays === 0 ? 'hoy' : 'vencida' });
+    }
+  });
+  return list.sort((a, b) => a.diffDays - b.diffDays);
+}
+
+function NotificacionesScreen({ tasks, opportunities, allEmployees, onOpenInTrabajadores }) {
+  const notifs = getNotifications(tasks, opportunities, allEmployees);
+
+  return (
+    <div>
+      <div className="page-header">
+        <h1 className="page-title">Notificaciones</h1>
+        <p className="page-subtitle">Tareas vencidas o que vencen hoy</p>
+      </div>
+
+      {notifs.length === 0 ? (
+        <div className="empty-state">🎉 No tienes tareas vencidas ni que venzan hoy.</div>
+      ) : (
+        <div className="hist-list">
+          {notifs.map(n => (
+            <div key={n.id} className="hist-card" onClick={() => onOpenInTrabajadores(n.opp, n.task)} style={{ borderLeft: `4px solid ${n.type === 'hoy' ? '#C98A2B' : '#D64545'}` }}>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ fontSize: 22 }}>{n.type === 'hoy' ? '⚠️' : '🔴'}</div>
+                <div style={{ flex: 1 }}>
+                  <div className="hist-desc" style={{ fontWeight: 700 }}>
+                    {n.type === 'hoy' ? 'Vence HOY: ' : `Vencida hace ${Math.abs(n.diffDays)} día${Math.abs(n.diffDays) !== 1 ? 's' : ''}: `}
+                    "{n.task.title}"
+                  </div>
+                  <div className="hist-meta">
+                    Proyecto: {n.opp.title || n.opp.description} · Colaborador: {n.emp?.name || '—'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -788,6 +942,7 @@ export default function App() {
   const [followups, setFollowups] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [tasks, setTasks] = useState([]);
 
   // UI state
   const [modal, setModal] = useState(null);
@@ -796,6 +951,9 @@ export default function App() {
   const [expandedOpps, setExpandedOpps] = useState({});
   const [adminView, setAdminView] = useState('mine'); // 'mine' | 'all'
   const [recoveryMode, setRecoveryMode] = useState(false);
+  const [activeTask, setActiveTask] = useState(null);
+  const [editTarget, setEditTarget] = useState(null); // { type: 'opp'|'task', item }
+  const [expandedTasks, setExpandedTasks] = useState({});
 
   // Form state
   const [fEmpleado, setFEmpleado] = useState('');
@@ -803,6 +961,15 @@ export default function App() {
   const [fObs, setFObs] = useState('');
   const [fLograrObs, setFLograrObs] = useState('');
   const [fCategory, setFCategory] = useState('');
+  const [fTitle, setFTitle] = useState('');
+  const [fTaskTitle, setFTaskTitle] = useState('');
+  const [fTaskDesc, setFTaskDesc] = useState('');
+  const [fTaskDue, setFTaskDue] = useState('');
+  const [fTaskObs, setFTaskObs] = useState('');
+  const [fEditDesc, setFEditDesc] = useState('');
+  const [fEditTitle, setFEditTitle] = useState('');
+  const [fEditCategory, setFEditCategory] = useState('');
+  const [fEditDue, setFEditDue] = useState('');
   const [formError, setFormError] = useState('');
 
   const isAdmin = user ? ADMIN_EMAILS.includes(user.email) : false;
@@ -827,7 +994,11 @@ export default function App() {
     const { data } = await supabase.from('categories').select('*').order('created_at', { ascending: true });
     setCategories(data || []);
   }, []);
-  const loadAll = useCallback(() => { loadEmployees(); loadOpportunities(); loadFollowups(); loadAssignments(); loadCategories(); }, [loadEmployees, loadOpportunities, loadFollowups, loadAssignments, loadCategories]);
+  const loadTasks = useCallback(async () => {
+    const { data } = await supabase.from('tasks').select('*').order('created_at', { ascending: true });
+    setTasks(data || []);
+  }, []);
+  const loadAll = useCallback(() => { loadEmployees(); loadOpportunities(); loadFollowups(); loadAssignments(); loadCategories(); loadTasks(); }, [loadEmployees, loadOpportunities, loadFollowups, loadAssignments, loadCategories, loadTasks]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -844,28 +1015,75 @@ export default function App() {
   const handleLogout = async () => { await supabase.auth.signOut(); setUser(null); setScreen('dashboard'); };
   const toggleWorker = (id) => setExpandedWorkers(s => ({ ...s, [id]: !s[id] }));
   const toggleOpp = (id) => setExpandedOpps(s => ({ ...s, [id]: !s[id] }));
+  const toggleTask = (id) => setExpandedTasks(s => ({ ...s, [id]: !s[id] }));
 
-  const openNueva = () => { setModal('nueva'); setFEmpleado(''); setFDesc(''); setFCategory(''); setFormError(''); };
-  const openSeguimiento = (opp) => { setModal('seguimiento'); setActiveOpp(opp); setFObs(''); setFormError(''); };
-  const openLograr = (opp) => { setModal('lograr'); setActiveOpp(opp); setFLograrObs(''); setFormError(''); };
+  const openNueva = () => { setModal('nueva'); setFEmpleado(''); setFDesc(''); setFCategory(''); setFTitle(''); setFormError(''); };
+  const openSeguimiento = (opp) => { setModal('seguimiento'); setActiveOpp(opp); setActiveTask(null); setFObs(''); setFormError(''); };
+  const openSeguimientoTask = (opp, task) => { setModal('seguimientoTask'); setActiveOpp(opp); setActiveTask(task); setFObs(''); setFormError(''); };
+  const openLograr = (opp) => { setModal('lograr'); setActiveOpp(opp); setActiveTask(null); setFLograrObs(''); setFormError(''); };
+  const openLograrTask = (opp, task) => { setModal('lograrTask'); setActiveOpp(opp); setActiveTask(task); setFTaskObs(''); setFormError(''); };
   const openDetalle = (opp) => { setModal('detalle'); setActiveOpp(opp); };
-  const openEliminar = (opp) => { setModal('eliminar'); setActiveOpp(opp); };
-  const closeModal = () => { setModal(null); setActiveOpp(null); setFormError(''); };
+  const openEliminar = (opp) => { setModal('eliminar'); setActiveOpp(opp); setActiveTask(null); };
+  const openEliminarTask = (opp, task) => { setModal('eliminarTask'); setActiveOpp(opp); setActiveTask(task); };
+  const openNuevaTask = (opp) => { setModal('nuevaTask'); setActiveOpp(opp); setFTaskTitle(''); setFTaskDesc(''); setFTaskDue(''); setFormError(''); };
+  const openEditarOpp = (opp) => { setModal('editarOpp'); setEditTarget({ type: 'opp', item: opp }); setFEditDesc(opp.description); setFEditTitle(opp.title || ''); setFEditCategory(opp.category_id || ''); setFormError(''); };
+  const openEditarTask = (opp, task) => { setModal('editarTask'); setActiveOpp(opp); setEditTarget({ type: 'task', item: task }); setFEditTitle(task.title); setFEditDesc(task.description || ''); setFEditDue(task.due_date || ''); setFormError(''); };
+  const closeModal = () => { setModal(null); setActiveOpp(null); setActiveTask(null); setEditTarget(null); setFormError(''); };
 
   const guardarNueva = async () => {
     if (!fEmpleado) return setFormError('Selecciona un empleado.');
     if (!fCategory) return setFormError('Selecciona una categoría.');
+    const cat = categories.find(c => c.id === fCategory);
+    const isProyecto = cat?.name === 'Proyectos';
+    if (isProyecto && fTitle.trim().length < 3) return setFormError('El título del proyecto debe tener al menos 3 caracteres.');
     if (fDesc.trim().length < 10) return setFormError('La descripción debe tener al menos 10 caracteres.');
     const mgr = employees.find(e => e.email === user?.email);
-    await supabase.from('opportunities').insert([{ employee_id: fEmpleado, manager_id: mgr?.id || null, description: fDesc.trim(), status: 'proceso', category_id: fCategory }]);
+    await supabase.from('opportunities').insert([{ employee_id: fEmpleado, manager_id: mgr?.id || null, description: fDesc.trim(), title: isProyecto ? fTitle.trim() : null, status: 'proceso', category_id: fCategory }]);
     setExpandedWorkers(s => ({ ...s, [fEmpleado]: true }));
     closeModal(); setScreen('trabajadores'); loadOpportunities();
   };
   const guardarSeguimiento = async () => {
     if (fObs.trim().length < 5) return setFormError('La observación debe tener al menos 5 caracteres.');
-    await supabase.from('followups').insert([{ opportunity_id: activeOpp.id, observation: fObs.trim() }]);
-    setExpandedOpps(s => ({ ...s, [activeOpp.id]: true }));
+    if (activeTask) {
+      await supabase.from('followups').insert([{ task_id: activeTask.id, observation: fObs.trim() }]);
+      setExpandedTasks(s => ({ ...s, [activeTask.id]: true }));
+    } else {
+      await supabase.from('followups').insert([{ opportunity_id: activeOpp.id, observation: fObs.trim() }]);
+      setExpandedOpps(s => ({ ...s, [activeOpp.id]: true }));
+    }
     closeModal(); loadFollowups();
+  };
+  const guardarNuevaTask = async () => {
+    if (fTaskTitle.trim().length < 3) return setFormError('El título de la tarea debe tener al menos 3 caracteres.');
+    await supabase.from('tasks').insert([{ opportunity_id: activeOpp.id, title: fTaskTitle.trim(), description: fTaskDesc.trim() || null, due_date: fTaskDue || null, status: 'pendiente' }]);
+    setExpandedOpps(s => ({ ...s, [activeOpp.id]: true }));
+    closeModal(); loadTasks();
+  };
+  const confirmarLogradoTask = async () => {
+    await supabase.from('tasks').update({ status: 'logrado', closed_at: new Date().toISOString(), final_observation: fTaskObs.trim() || 'Tarea completada.', updated_at: new Date().toISOString() }).eq('id', activeTask.id);
+    closeModal(); loadTasks();
+  };
+  const eliminarTask = async () => {
+    await supabase.from('tasks').delete().eq('id', activeTask.id);
+    await supabase.from('audit_log').insert([{ action: 'DELETE_TASK', employee_id: activeOpp.employee_id, details: `Tarea eliminada: "${activeTask.title}"` }]);
+    closeModal(); loadTasks();
+  };
+  const guardarEdicion = async () => {
+    if (editTarget.type === 'opp') {
+      if (fEditDesc.trim().length < 10) return setFormError('La descripción debe tener al menos 10 caracteres.');
+      const cat = categories.find(c => c.id === fEditCategory);
+      const isProyecto = cat?.name === 'Proyectos';
+      if (isProyecto && fEditTitle.trim().length < 3) return setFormError('El título del proyecto debe tener al menos 3 caracteres.');
+      await supabase.from('opportunities').update({ description: fEditDesc.trim(), title: isProyecto ? fEditTitle.trim() : null, category_id: fEditCategory, updated_at: new Date().toISOString() }).eq('id', editTarget.item.id);
+      await supabase.from('audit_log').insert([{ action: 'EDIT_OPP', employee_id: editTarget.item.employee_id, details: `Oportunidad editada: "${editTarget.item.description}" → "${fEditDesc.trim()}"` }]);
+      loadOpportunities();
+    } else {
+      if (fEditTitle.trim().length < 3) return setFormError('El título debe tener al menos 3 caracteres.');
+      await supabase.from('tasks').update({ title: fEditTitle.trim(), description: fEditDesc.trim() || null, due_date: fEditDue || null, updated_at: new Date().toISOString() }).eq('id', editTarget.item.id);
+      await supabase.from('audit_log').insert([{ action: 'EDIT_TASK', employee_id: activeOpp?.employee_id, details: `Tarea editada: "${editTarget.item.title}" → "${fEditTitle.trim()}"` }]);
+      loadTasks();
+    }
+    closeModal();
   };
   const confirmarLogrado = async () => {
     const duration = daysBetween(activeOpp.created_at, new Date());
@@ -916,14 +1134,24 @@ export default function App() {
   const allOpportunities = opportunities.filter(o => allActiveIds.has(o.employee_id));
 
   const activeEmp = activeOpp ? employees.find(e => e.id === activeOpp.employee_id) : null;
+  const myTaskOppIds = new Set(myOpportunities.map(o => o.id));
+  const myNotifs = getNotifications(tasks.filter(t => myTaskOppIds.has(t.opportunity_id)), myOpportunities, activeEmps);
+
+  const goToTaskInTrabajadores = (opp, task) => {
+    setScreen('trabajadores');
+    setExpandedWorkers(s => ({ ...s, [opp.employee_id]: true }));
+    setExpandedOpps(s => ({ ...s, [opp.id]: true }));
+    if (task) setExpandedTasks(s => ({ ...s, [task.id]: true }));
+  };
 
   return (
     <div className="app-layout">
-      <Sidebar user={user} screen={screen} setScreen={setScreen} isAdmin={isAdmin} onLogout={handleLogout} managerName={currentManager?.name} />
+      <Sidebar user={user} screen={screen} setScreen={setScreen} isAdmin={isAdmin} onLogout={handleLogout} managerName={currentManager?.name} notifCount={myNotifs.length} />
       <main className="main-content">
         {screen === 'dashboard' && <DashboardScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
-        {screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenEliminar={openEliminar} expandedWorkers={expandedWorkers} toggleWorker={toggleWorker} expandedOpps={expandedOpps} toggleOpp={toggleOpp} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
+        {screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} tasks={tasks} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenEliminar={openEliminar} onOpenEditarOpp={openEditarOpp} onOpenNuevaTask={openNuevaTask} onOpenSeguimientoTask={openSeguimientoTask} onOpenLograrTask={openLograrTask} onOpenEliminarTask={openEliminarTask} onOpenEditarTask={openEditarTask} expandedWorkers={expandedWorkers} toggleWorker={toggleWorker} expandedOpps={expandedOpps} toggleOpp={toggleOpp} expandedTasks={expandedTasks} toggleTask={toggleTask} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {screen === 'historial' && <HistorialScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenDetalle={openDetalle} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
+        {screen === 'notificaciones' && <NotificacionesScreen tasks={tasks} opportunities={myOpportunities} allEmployees={activeEmps} onOpenInTrabajadores={goToTaskInTrabajadores} />}
         {screen === 'config' && isAdmin && <ConfigScreen employees={employees} categories={categories} onEmployeesUpdated={loadEmployees} onAssignmentsUpdated={loadAssignments} onCategoriesUpdated={loadCategories} />}
         {screen === 'config' && !isAdmin && <div className="error-msg">No tienes acceso a esta sección</div>}
       </main>
@@ -945,7 +1173,12 @@ export default function App() {
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div className="form-group"><label>Descripción de la oportunidad</label>
+          {categories.find(c => c.id === fCategory)?.name === 'Proyectos' && (
+            <div className="form-group"><label>Título del proyecto</label>
+              <input className="form-input" placeholder="Ej: Rediseño del catálogo de productos" value={fTitle} onChange={e => setFTitle(e.target.value)} />
+            </div>
+          )}
+          <div className="form-group"><label>Descripción {categories.find(c => c.id === fCategory)?.name === 'Proyectos' ? 'general del proyecto' : 'de la oportunidad'}</label>
             <textarea className="form-textarea" placeholder="Describe la oportunidad de mejora con suficiente detalle..." value={fDesc} onChange={e => setFDesc(e.target.value)} />
             <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>{fDesc.trim().length} caracteres · mínimo 10</div>
           </div>
@@ -953,6 +1186,134 @@ export default function App() {
           <div className="modal-actions">
             <button className="btn-secondary" onClick={closeModal}>Cancelar</button>
             <button className="btn-primary" onClick={guardarNueva} style={{ flex: 1 }}>Guardar</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL: NUEVA TAREA (de un proyecto) */}
+      {modal === 'nuevaTask' && activeOpp && (
+        <Modal onClose={closeModal}>
+          <div className="modal-title">Nueva tarea</div>
+          <div className="modal-context">
+            <div className="modal-context-label">Proyecto</div>
+            <div className="modal-context-text">{activeOpp.title}</div>
+          </div>
+          <div className="form-group"><label>Título de la tarea</label>
+            <input className="form-input" placeholder="Ej: Subir fotos de productos" value={fTaskTitle} onChange={e => setFTaskTitle(e.target.value)} />
+          </div>
+          <div className="form-group"><label>Descripción (opcional)</label>
+            <textarea className="form-textarea" placeholder="Detalles de la tarea..." value={fTaskDesc} onChange={e => setFTaskDesc(e.target.value)} />
+          </div>
+          <div className="form-group"><label>Fecha límite (opcional)</label>
+            <input type="date" className="form-input" value={fTaskDue} onChange={e => setFTaskDue(e.target.value)} />
+          </div>
+          {formError && <div className="error-msg">{formError}</div>}
+          <div className="modal-actions">
+            <button className="btn-secondary" onClick={closeModal}>Cancelar</button>
+            <button className="btn-primary" onClick={guardarNuevaTask} style={{ flex: 1 }}>Guardar tarea</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL: SEGUIMIENTO DE TAREA */}
+      {modal === 'seguimientoTask' && activeTask && (
+        <Modal onClose={closeModal}>
+          <div className="modal-title">Agregar seguimiento</div>
+          <div className="modal-context">
+            <div className="modal-context-label">Tarea</div>
+            <div className="modal-context-text">{activeTask.title}</div>
+            <div className="modal-context-meta">Proyecto: {activeOpp?.title || '—'}</div>
+          </div>
+          <div className="form-group"><label>Observación</label>
+            <textarea className="form-textarea" placeholder="Describe avances, observaciones..." value={fObs} onChange={e => setFObs(e.target.value)} />
+          </div>
+          {formError && <div className="error-msg">{formError}</div>}
+          <div className="modal-actions">
+            <button className="btn-secondary" onClick={closeModal}>Cancelar</button>
+            <button className="btn-primary" onClick={guardarSeguimiento} style={{ flex: 1 }}>Guardar seguimiento</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL: LOGRAR TAREA */}
+      {modal === 'lograrTask' && activeTask && (
+        <Modal onClose={closeModal}>
+          <div className="modal-title">Marcar tarea como Lograda</div>
+          <div className="modal-context">
+            <div className="modal-context-label">Tarea</div>
+            <div className="modal-context-text">{activeTask.title}</div>
+            <div className="modal-context-meta">Proyecto: {activeOpp?.title || '—'}</div>
+          </div>
+          <div className="form-group"><label>Observación final (opcional)</label>
+            <textarea className="form-textarea" placeholder="Resultados obtenidos..." value={fTaskObs} onChange={e => setFTaskObs(e.target.value)} />
+          </div>
+          <div className="modal-actions">
+            <button className="btn-secondary" onClick={closeModal}>Cancelar</button>
+            <button className="btn-lograr-confirm" onClick={confirmarLogradoTask}>Confirmar</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL: ELIMINAR TAREA */}
+      {modal === 'eliminarTask' && activeTask && (
+        <Modal onClose={closeModal}>
+          <div className="modal-title">¿Eliminar esta tarea?</div>
+          <div className="modal-context">
+            <div className="modal-context-label">Tarea</div>
+            <div className="modal-context-text">{activeTask.title}</div>
+          </div>
+          <div style={{ fontSize: 14, color: '#666', lineHeight: 1.6, marginBottom: 20, background: '#fff3f3', padding: 16, borderRadius: 10, borderLeft: '4px solid #D64545' }}>
+            Esta acción eliminará la tarea de forma permanente.
+          </div>
+          <div className="modal-actions">
+            <button className="btn-secondary" onClick={closeModal}>Cancelar</button>
+            <button className="btn-danger" onClick={eliminarTask} style={{ flex: 1 }}>Sí, eliminar</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL: EDITAR OPORTUNIDAD / PROYECTO */}
+      {modal === 'editarOpp' && editTarget && (
+        <Modal onClose={closeModal}>
+          <div className="modal-title">Editar {categories.find(c => c.id === fEditCategory)?.name === 'Proyectos' ? 'proyecto' : 'oportunidad'}</div>
+          <div className="form-group"><label>Categoría</label>
+            <select className="form-select" value={fEditCategory} onChange={e => setFEditCategory(e.target.value)}>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          {categories.find(c => c.id === fEditCategory)?.name === 'Proyectos' && (
+            <div className="form-group"><label>Título del proyecto</label>
+              <input className="form-input" value={fEditTitle} onChange={e => setFEditTitle(e.target.value)} />
+            </div>
+          )}
+          <div className="form-group"><label>Descripción</label>
+            <textarea className="form-textarea" value={fEditDesc} onChange={e => setFEditDesc(e.target.value)} />
+          </div>
+          {formError && <div className="error-msg">{formError}</div>}
+          <div className="modal-actions">
+            <button className="btn-secondary" onClick={closeModal}>Cancelar</button>
+            <button className="btn-primary" onClick={guardarEdicion} style={{ flex: 1 }}>Guardar cambios</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL: EDITAR TAREA */}
+      {modal === 'editarTask' && editTarget && (
+        <Modal onClose={closeModal}>
+          <div className="modal-title">Editar tarea</div>
+          <div className="form-group"><label>Título de la tarea</label>
+            <input className="form-input" value={fEditTitle} onChange={e => setFEditTitle(e.target.value)} />
+          </div>
+          <div className="form-group"><label>Descripción</label>
+            <textarea className="form-textarea" value={fEditDesc} onChange={e => setFEditDesc(e.target.value)} />
+          </div>
+          <div className="form-group"><label>Fecha límite (opcional)</label>
+            <input type="date" className="form-input" value={fEditDue} onChange={e => setFEditDue(e.target.value)} />
+          </div>
+          {formError && <div className="error-msg">{formError}</div>}
+          <div className="modal-actions">
+            <button className="btn-secondary" onClick={closeModal}>Cancelar</button>
+            <button className="btn-primary" onClick={guardarEdicion} style={{ flex: 1 }}>Guardar cambios</button>
           </div>
         </Modal>
       )}
@@ -1033,10 +1394,11 @@ export default function App() {
       {modal === 'detalle' && activeOpp && (
         <Modal onClose={closeModal}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-            <div className="modal-title" style={{ marginBottom: 0 }}>{activeOpp.description}</div>
+            <div className="modal-title" style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>{activeOpp.title || activeOpp.description}</div>
             <span className="badge badge-green">Logrado</span>
           </div>
           {(() => { const cat = categories.find(c => c.id === activeOpp.category_id); return cat ? <div style={{ marginBottom: 12 }}><span className="cat-badge" style={{ background: cat.color + '20', color: cat.color, borderLeft: `3px solid ${cat.color}` }}>{cat.name}</span></div> : null; })()}
+          {activeOpp.title && <div style={{ fontSize: 14, color: '#555', marginBottom: 12, whiteSpace: 'pre-wrap' }}>{activeOpp.description}</div>}
           <div style={{ display: 'flex', gap: 12, marginBottom: 16, fontSize: 13, color: '#888', flexWrap: 'wrap' }}>
             <span>Colaborador: <strong>{activeEmp?.name}</strong></span><span>·</span>
             <span>Creada: {fmtDate(activeOpp.created_at)}</span><span>·</span>
@@ -1045,11 +1407,11 @@ export default function App() {
           </div>
           <div style={{ background: '#f0fff4', padding: 16, borderRadius: 10, marginBottom: 16, borderLeft: '4px solid #2C8B5D' }}>
             <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>Observación final</div>
-            <div style={{ fontSize: 14, color: '#333' }}>{activeOpp.final_observation || 'Sin observación.'}</div>
+            <div style={{ fontSize: 14, color: '#333', whiteSpace: 'pre-wrap' }}>{activeOpp.final_observation || 'Sin observación.'}</div>
           </div>
           {(() => { const fus = followups.filter(f => f.opportunity_id === activeOpp.id); return fus.length > 0 && (
             <div><div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>Seguimientos ({fus.length})</div>
-              {fus.map(fu => (<div key={fu.id} className="followup-item"><div className="followup-date">{fmtDate(fu.created_at)}</div><div className="followup-text">{fu.observation}</div></div>))}
+              {fus.map(fu => (<div key={fu.id} className="followup-item"><div className="followup-date">{fmtDate(fu.created_at)}</div><div className="followup-text" style={{ whiteSpace: 'pre-wrap' }}>{fu.observation}</div></div>))}
             </div>
           ); })()}
           <div className="modal-actions" style={{ marginTop: 20 }}><button className="btn-secondary" onClick={closeModal} style={{ width: '100%' }}>Cerrar</button></div>
