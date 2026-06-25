@@ -13,6 +13,105 @@ const fmtDateLong = (d) => d ? new Date(d).toLocaleDateString('es-PE', { weekday
 const COLORS = ['#1F6FB2', '#2C8B5D', '#8A5BB0', '#C98A2B', '#D64545', '#3A8F8F', '#7B61FF', '#E07C4F'];
 
 /* ================================================================
+   ESQUEMAS DE REGISTROS SANITARIOS
+   ================================================================ */
+const RS_SCHEMAS = {
+  dm: {
+    table: 'rs_dispositivos_medicos', codigo: 'FOR-GT-001', nombre: 'Dispositivos Médicos',
+    titleField: 'producto', codeField: 'registro_sanitario',
+    fields: [
+      { key: 'registro_sanitario', label: 'Registro Sanitario', type: 'text', required: true },
+      { key: 'producto', label: 'Producto', type: 'text', required: true },
+      { key: 'composicion', label: 'Composición', type: 'textarea' },
+      { key: 'nombre_comun', label: 'Nombre común', type: 'text' },
+      { key: 'presentacion', label: 'Presentación', type: 'textarea' },
+      { key: 'tiempo_vida_util', label: 'Tiempo de vida útil', type: 'text' },
+      { key: 'temperatura_almacenamiento', label: 'Temperatura de almacenamiento', type: 'text' },
+      { key: 'fabricante', label: 'Fabricante', type: 'text' },
+      { key: 'pais_fabricacion', label: 'País de fabricación', type: 'text' },
+      { key: 'clase', label: 'Clase', type: 'text' },
+      { key: 'rubro', label: 'Rubro', type: 'text' },
+      { key: 'f_autorizacion', label: 'Fecha de autorización', type: 'date' },
+      { key: 'f_vencimiento', label: 'Fecha de vencimiento', type: 'date', required: true },
+      { key: 'estado', label: 'Estado', type: 'select', options: ['VIGENTE', 'EN REINSCRIPCIÓN', 'PARA REINSCRIPCIÓN'] },
+      { key: 'n_expediente', label: 'N° de expediente', type: 'text' },
+      { key: 'observaciones', label: 'Observaciones', type: 'textarea' },
+    ]
+  },
+  cosm: {
+    table: 'rs_cosmeticos', codigo: 'FOR-GT-002', nombre: 'Cosméticos',
+    titleField: 'producto', codeField: 'nso',
+    fields: [
+      { key: 'nso', label: 'NSO', type: 'text', required: true },
+      { key: 'producto', label: 'Producto', type: 'text', required: true },
+      { key: 'denominacion_generica', label: 'Denominación genérica', type: 'text' },
+      { key: 'tiempo_vida_util', label: 'Tiempo de vida útil', type: 'text' },
+      { key: 'presentacion', label: 'Presentación', type: 'textarea' },
+      { key: 'fabricante', label: 'Fabricante', type: 'text' },
+      { key: 'pais_fabricacion', label: 'País de fabricación', type: 'text' },
+      { key: 'rubro', label: 'Rubro', type: 'text' },
+      { key: 'f_autorizacion', label: 'Fecha de autorización', type: 'date' },
+      { key: 'f_vencimiento', label: 'Fecha de vencimiento', type: 'date', required: true },
+      { key: 'estado', label: 'Estado', type: 'select', options: ['VIGENTE', 'EN REINSCRIPCIÓN', 'PARA REINSCRIPCIÓN'] },
+      { key: 'n_expediente', label: 'N° de expediente', type: 'text' },
+      { key: 'observaciones', label: 'Observaciones', type: 'textarea' },
+    ]
+  },
+  pf: {
+    table: 'rs_producto_farmaceutico', codigo: 'FOR-GT-003', nombre: 'Producto Farmacéutico',
+    titleField: 'nombre', codeField: 'registro_sanitario',
+    fields: [
+      { key: 'registro_sanitario', label: 'Registro Sanitario', type: 'text', required: true },
+      { key: 'nombre', label: 'Nombre', type: 'text', required: true },
+      { key: 'concentracion', label: 'Concentración', type: 'text' },
+      { key: 'forma_farmaceutica', label: 'Forma farmacéutica', type: 'text' },
+      { key: 'fabricante', label: 'Fabricante', type: 'text' },
+      { key: 'pais_fabricacion', label: 'País de fabricación', type: 'text' },
+      { key: 'rubro', label: 'Rubro', type: 'text' },
+      { key: 'f_autorizacion', label: 'Fecha de autorización', type: 'date' },
+      { key: 'f_vencimiento', label: 'Fecha de vencimiento', type: 'date', required: true },
+      { key: 'tipo_tramite', label: 'Tipo de trámite', type: 'text' },
+      { key: 'estado', label: 'Estado', type: 'select', options: ['VIGENTE', 'EN REINSCRIPCIÓN', 'PARA REINSCRIPCIÓN'] },
+      { key: 'suce', label: 'SUCE', type: 'text' },
+      { key: 'n_expediente', label: 'N° de expediente', type: 'text' },
+    ]
+  },
+  digesa: {
+    table: 'rs_digesa', codigo: 'FOR-GT-004', nombre: 'DIGESA',
+    titleField: 'producto', codeField: 'registro_sanitario',
+    fields: [
+      { key: 'registro_sanitario', label: 'Registro Sanitario', type: 'text', required: true },
+      { key: 'producto', label: 'Producto', type: 'text', required: true },
+      { key: 'composicion', label: 'Composición', type: 'textarea' },
+      { key: 'presentacion', label: 'Presentación', type: 'textarea' },
+      { key: 'tiempo_vida_util', label: 'Tiempo de vida útil', type: 'text' },
+      { key: 'temperatura_almacenamiento', label: 'Temperatura de almacenamiento', type: 'text' },
+      { key: 'fabricante', label: 'Fabricante', type: 'text' },
+      { key: 'pais_fabricacion', label: 'País de fabricación', type: 'text' },
+      { key: 'f_autorizacion', label: 'Fecha de autorización', type: 'date' },
+      { key: 'f_vencimiento', label: 'Fecha de vencimiento', type: 'date', required: true },
+      { key: 'estado', label: 'Estado', type: 'select', options: ['VIGENTE', 'EN REINSCRIPCIÓN', 'PARA REINSCRIPCIÓN'] },
+      { key: 'suce', label: 'SUCE', type: 'text' },
+      { key: 'n_expediente', label: 'N° de expediente', type: 'text' },
+    ]
+  },
+  cert: {
+    table: 'certificaciones_digemid', codigo: 'DIGEMID', nombre: 'Certificaciones',
+    titleField: 'descripcion', codeField: 'n_certificado',
+    fields: [
+      { key: 'n_certificado', label: 'N° Certificado', type: 'text', required: true },
+      { key: 'descripcion', label: 'Descripción', type: 'text', required: true },
+      { key: 'condiciones_almacenamiento', label: 'Condiciones de almacenamiento', type: 'textarea' },
+      { key: 'almacenes', label: 'Almacenes', type: 'textarea' },
+      { key: 'f_inicio_validez', label: 'Fecha de inicio de validez', type: 'date' },
+      { key: 'f_vencimiento', label: 'Fecha de vencimiento', type: 'date', required: true },
+      { key: 'estado', label: 'Estado', type: 'select', options: ['VIGENTE', 'EN REINSCRIPCIÓN', 'PARA REINSCRIPCIÓN'] },
+      { key: 'n_expediente', label: 'N° de expediente', type: 'text' },
+    ]
+  },
+};
+
+/* ================================================================
    LOGIN
    ================================================================ */
 function LoginScreen({ onLogin }) {
@@ -106,7 +205,7 @@ function LoginScreen({ onLogin }) {
 /* ================================================================
    SIDEBAR - Ahora muestra ¡Hola Nombre!
    ================================================================ */
-function Sidebar({ user, screen, setScreen, isAdmin, onLogout, managerName, notifCount }) {
+function Sidebar({ user, screen, setScreen, isAdmin, onLogout, managerName, notifCount, hasRegistrosAccess }) {
   const name = managerName || user?.email?.split('@')[0] || '';
   const items = [
     { id: 'dashboard', icon: '📊', label: 'Dashboard' },
@@ -114,6 +213,7 @@ function Sidebar({ user, screen, setScreen, isAdmin, onLogout, managerName, noti
     { id: 'historial', icon: '🕐', label: 'Historial' },
     { id: 'notificaciones', icon: '🔔', label: 'Notificaciones' },
   ];
+  if (hasRegistrosAccess) items.push({ id: 'registros', icon: '🧪', label: 'Registros Sanitarios' });
   if (isAdmin) items.push({ id: 'config', icon: '⚙️', label: 'Configuración' });
 
   return (
@@ -688,10 +788,42 @@ function getNotifications(tasks, opportunities, allEmployees) {
   return list.sort((a, b) => a.diffDays - b.diffDays);
 }
 
-function NotificacionesScreen({ myTasks, myOpportunities, allTasks, allOpportunities, allEmployees, isAdmin, adminView, setAdminView, onOpenInTrabajadores }) {
+function getRsNotifications(rsDM, rsCosm, rsPF, rsDigesa, certDigemid) {
+  const all = [
+    ...rsDM.map(i => ({ ...i, _tab: 'dm' })),
+    ...rsCosm.map(i => ({ ...i, _tab: 'cosm' })),
+    ...rsPF.map(i => ({ ...i, _tab: 'pf' })),
+    ...rsDigesa.map(i => ({ ...i, _tab: 'digesa' })),
+    ...certDigemid.map(i => ({ ...i, _tab: 'cert' })),
+  ];
+  const result = [];
+  for (const item of all) {
+    if (!item.f_vencimiento) continue;
+    const dias = diasHasta(item.f_vencimiento);
+    if (dias === null || dias > 30) continue;
+    const schema = RS_SCHEMAS[item._tab];
+    result.push({
+      id: item.id, tab: item._tab, nombre: schema.nombre, titulo: item[schema.titleField],
+      codigo: item[schema.codeField], diasRestantes: dias,
+      tipo: dias < 0 ? 'vencido' : dias === 0 ? 'hoy' : dias <= 15 ? '15dias' : '1mes'
+    });
+  }
+  return result.sort((a, b) => a.diasRestantes - b.diasRestantes);
+}
+
+function NotificacionesScreen({ myTasks, myOpportunities, allTasks, allOpportunities, allEmployees, isAdmin, adminView, setAdminView, onOpenInTrabajadores, rsDM, rsCosm, rsPF, rsDigesa, certDigemid, hasRegistrosAccess, onOpenInRegistros }) {
   const tasksToUse = adminView === 'all' ? allTasks : myTasks;
   const oppsToUse = adminView === 'all' ? allOpportunities : myOpportunities;
   const notifs = getNotifications(tasksToUse, oppsToUse, allEmployees);
+  const rsNotifs = hasRegistrosAccess ? getRsNotifications(rsDM, rsCosm, rsPF, rsDigesa, certDigemid) : [];
+
+  const rsColor = (tipo) => tipo === 'vencido' ? '#D64545' : tipo === 'hoy' ? '#C98A2B' : tipo === '15dias' ? '#C98A2B' : '#3A8F8F';
+  const rsIcon = (tipo) => tipo === 'vencido' ? '🔴' : tipo === 'hoy' ? '⚠️' : tipo === '15dias' ? '⚠️' : '⏳';
+  const rsLabel = (n) => {
+    if (n.tipo === 'vencido') return `Vencido hace ${Math.abs(n.diasRestantes)} día${Math.abs(n.diasRestantes) !== 1 ? 's' : ''}`;
+    if (n.tipo === 'hoy') return 'Vence HOY';
+    return `Vence en ${n.diasRestantes} día${n.diasRestantes !== 1 ? 's' : ''}`;
+  };
 
   return (
     <div>
@@ -719,6 +851,121 @@ function NotificacionesScreen({ myTasks, myOpportunities, allTasks, allOpportuni
                     Proyecto: {n.opp.title || n.opp.description} · Colaborador: {n.emp?.name || '—'}
                   </div>
                 </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {hasRegistrosAccess && (
+        <div style={{ marginTop: 32 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#15362C', marginBottom: 12 }}>🧪 Registros Sanitarios</h2>
+          {rsNotifs.length === 0 ? (
+            <div className="empty-state">🎉 Sin registros sanitarios por vencer en los próximos 30 días.</div>
+          ) : (
+            <div className="hist-list">
+              {rsNotifs.map(n => (
+                <div key={n.tab + n.id} className="hist-card" onClick={() => onOpenInRegistros(n.tab)} style={{ borderLeft: `4px solid ${rsColor(n.tipo)}` }}>
+                  <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                    <div style={{ fontSize: 22 }}>{rsIcon(n.tipo)}</div>
+                    <div style={{ flex: 1 }}>
+                      <div className="hist-desc" style={{ fontWeight: 700 }}>{rsLabel(n)}: "{n.titulo}"</div>
+                      <div className="hist-meta">{n.nombre} · Código: {n.codigo}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ================================================================
+   REGISTROS SANITARIOS
+   ================================================================ */
+function diasHasta(fecha) {
+  if (!fecha) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const f = new Date(fecha + 'T00:00:00');
+  return Math.round((f - today) / 86400000);
+}
+
+function RsAlertBadge({ fVencimiento }) {
+  const dias = diasHasta(fVencimiento);
+  if (dias === null) return null;
+  if (dias < 0) return <span className="task-alert" title="Vencido"> 🔴 Vencido hace {Math.abs(dias)} día{Math.abs(dias) !== 1 ? 's' : ''}</span>;
+  if (dias === 0) return <span className="task-alert" title="Vence hoy"> ⚠️ Vence hoy</span>;
+  if (dias <= 15) return <span className="task-alert" title="Vence en 15 días o menos"> ⚠️ Vence en {dias} día{dias !== 1 ? 's' : ''}</span>;
+  if (dias <= 30) return <span style={{ color: '#C98A2B', fontWeight: 700 }} title="Vence en 1 mes o menos"> ⏳ Vence en {dias} días</span>;
+  return null;
+}
+
+function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDigesa, certDigemid, canEdit, onOpenNuevo, onOpenEditar, onOpenEliminar }) {
+  const dataMap = { dm: rsDM, cosm: rsCosm, pf: rsPF, digesa: rsDigesa, cert: certDigemid };
+  const schema = RS_SCHEMAS[rsTab];
+  const items = dataMap[rsTab] || [];
+
+  const tabs = [
+    { key: 'dm', label: 'Dispositivos Médicos' },
+    { key: 'cosm', label: 'Cosméticos' },
+    { key: 'pf', label: 'Farmacéutico' },
+    { key: 'digesa', label: 'DIGESA' },
+    { key: 'cert', label: 'Certificaciones' },
+  ];
+
+  return (
+    <div>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1 className="page-title">Registros Sanitarios</h1>
+          <p className="page-subtitle">{schema.codigo} · {schema.nombre}</p>
+        </div>
+        {canEdit && (
+          <button className="btn-nueva" onClick={() => onOpenNuevo(rsTab)}>
+            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><line x1="9" y1="4" x2="9" y2="14"/><line x1="4" y1="9" x2="14" y2="9"/></svg>
+            Agregar
+          </button>
+        )}
+      </div>
+
+      <div className="tabs" style={{ marginBottom: 16, flexWrap: 'wrap' }}>
+        {tabs.map(t => (
+          <button key={t.key} className={`tab ${rsTab === t.key ? 'active' : ''}`} onClick={() => setRsTab(t.key)}>{t.label}</button>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>{items.length} registro{items.length !== 1 ? 's' : ''}</div>
+
+      {items.length === 0 ? (
+        <div className="empty-state">No hay registros en esta categoría todavía.</div>
+      ) : (
+        <div className="hist-list">
+          {items.map(item => (
+            <div key={item.id} className="hist-card" style={{ cursor: 'default' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <div className="hist-desc">
+                    {item[schema.titleField]}
+                    <RsAlertBadge fVencimiento={item.f_vencimiento} />
+                  </div>
+                  <div className="hist-meta">
+                    {schema.codeField}: {item[schema.codeField]} · Vence: {fmtDate(item.f_vencimiento)}
+                    {item.estado && <span> · Estado: {item.estado}</span>}
+                  </div>
+                </div>
+                {canEdit && (
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <button className="btn-editar" onClick={() => onOpenEditar(rsTab, item)} title="Editar">
+                      <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button className="btn-eliminar" onClick={() => onOpenEliminar(rsTab, item)} title="Eliminar">
+                      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/></svg>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -1002,6 +1249,12 @@ export default function App() {
   const [assignments, setAssignments] = useState([]);
   const [categories, setCategories] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [modulePermissions, setModulePermissions] = useState([]);
+  const [rsDM, setRsDM] = useState([]);
+  const [rsCosm, setRsCosm] = useState([]);
+  const [rsPF, setRsPF] = useState([]);
+  const [rsDigesa, setRsDigesa] = useState([]);
+  const [certDigemid, setCertDigemid] = useState([]);
 
   // UI state
   const [modal, setModal] = useState(null);
@@ -1013,6 +1266,10 @@ export default function App() {
   const [activeTask, setActiveTask] = useState(null);
   const [editTarget, setEditTarget] = useState(null); // { type: 'opp'|'task', item }
   const [expandedTasks, setExpandedTasks] = useState({});
+  const [rsTab, setRsTab] = useState('dm'); // dm | cosm | pf | digesa | cert
+  const [rsModal, setRsModal] = useState(null); // 'nuevo' | 'editar' | 'eliminar'
+  const [rsEditItem, setRsEditItem] = useState(null);
+  const [rsForm, setRsForm] = useState({});
 
   // Form state
   const [fEmpleado, setFEmpleado] = useState('');
@@ -1054,7 +1311,34 @@ export default function App() {
     const { data } = await supabase.from('tasks').select('*').order('created_at', { ascending: true });
     setTasks(data || []);
   }, []);
-  const loadAll = useCallback(() => { loadEmployees(); loadOpportunities(); loadFollowups(); loadAssignments(); loadCategories(); loadTasks(); }, [loadEmployees, loadOpportunities, loadFollowups, loadAssignments, loadCategories, loadTasks]);
+  const loadModulePermissions = useCallback(async () => {
+    const { data } = await supabase.from('module_permissions').select('*');
+    setModulePermissions(data || []);
+  }, []);
+  const loadRsDM = useCallback(async () => {
+    const { data } = await supabase.from('rs_dispositivos_medicos').select('*').order('f_vencimiento', { ascending: true });
+    setRsDM(data || []);
+  }, []);
+  const loadRsCosm = useCallback(async () => {
+    const { data } = await supabase.from('rs_cosmeticos').select('*').order('f_vencimiento', { ascending: true });
+    setRsCosm(data || []);
+  }, []);
+  const loadRsPF = useCallback(async () => {
+    const { data } = await supabase.from('rs_producto_farmaceutico').select('*').order('f_vencimiento', { ascending: true });
+    setRsPF(data || []);
+  }, []);
+  const loadRsDigesa = useCallback(async () => {
+    const { data } = await supabase.from('rs_digesa').select('*').order('f_vencimiento', { ascending: true });
+    setRsDigesa(data || []);
+  }, []);
+  const loadCertDigemid = useCallback(async () => {
+    const { data } = await supabase.from('certificaciones_digemid').select('*').order('f_vencimiento', { ascending: true });
+    setCertDigemid(data || []);
+  }, []);
+  const loadAll = useCallback(() => {
+    loadEmployees(); loadOpportunities(); loadFollowups(); loadAssignments(); loadCategories(); loadTasks();
+    loadModulePermissions(); loadRsDM(); loadRsCosm(); loadRsPF(); loadRsDigesa(); loadCertDigemid();
+  }, [loadEmployees, loadOpportunities, loadFollowups, loadAssignments, loadCategories, loadTasks, loadModulePermissions, loadRsDM, loadRsCosm, loadRsPF, loadRsDigesa, loadCertDigemid]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -1085,6 +1369,37 @@ export default function App() {
   const openEditarOpp = (opp) => { setModal('editarOpp'); setEditTarget({ type: 'opp', item: opp }); setFEditTitle(opp.title || opp.description || ''); setFEditCategory(opp.category_id || ''); setFormError(''); };
   const openEditarTask = (opp, task) => { setModal('editarTask'); setActiveOpp(opp); setEditTarget({ type: 'task', item: task }); setFEditTitle(task.title); setFEditDue(task.due_date || ''); setFormError(''); };
   const openEditarFollowup = (fu) => { setModal('editarFollowup'); setEditTarget({ type: 'followup', item: fu }); setFObs(fu.observation); setFormError(''); };
+
+  const openRsNuevo = (tabKey) => { setRsTab(tabKey); setRsModal('nuevo'); setRsEditItem(null); setRsForm({}); setFormError(''); };
+  const openRsEditar = (tabKey, item) => { setRsTab(tabKey); setRsModal('editar'); setRsEditItem(item); setRsForm({ ...item }); setFormError(''); };
+  const openRsEliminar = (tabKey, item) => { setRsTab(tabKey); setRsModal('eliminar'); setRsEditItem(item); };
+  const closeRsModal = () => { setRsModal(null); setRsEditItem(null); setRsForm({}); setFormError(''); };
+
+  const rsLoaders = { dm: loadRsDM, cosm: loadRsCosm, pf: loadRsPF, digesa: loadRsDigesa, cert: loadCertDigemid };
+
+  const guardarRs = async () => {
+    const schema = RS_SCHEMAS[rsTab];
+    for (const f of schema.fields) {
+      if (f.required && !rsForm[f.key]) return setFormError(`El campo "${f.label}" es obligatorio.`);
+    }
+    const payload = { ...rsForm, updated_at: new Date().toISOString() };
+    if (rsModal === 'nuevo') {
+      const { error } = await supabase.from(schema.table).insert([payload]);
+      if (error) return setFormError('Error al guardar: ' + error.message);
+    } else {
+      const { error } = await supabase.from(schema.table).update(payload).eq('id', rsEditItem.id);
+      if (error) return setFormError('Error al guardar: ' + error.message);
+    }
+    closeRsModal();
+    rsLoaders[rsTab]();
+  };
+
+  const eliminarRs = async () => {
+    const schema = RS_SCHEMAS[rsTab];
+    await supabase.from(schema.table).delete().eq('id', rsEditItem.id);
+    closeRsModal();
+    rsLoaders[rsTab]();
+  };
   const closeModal = () => { setModal(null); setActiveOpp(null); setActiveTask(null); setEditTarget(null); setFormError(''); };
 
   const guardarNueva = async () => {
@@ -1211,14 +1526,23 @@ export default function App() {
     if (task) setExpandedTasks(s => ({ ...s, [task.id]: true }));
   };
 
+  const myPermission = modulePermissions.find(p => p.employee_email === user?.email && p.module === 'registros_sanitarios');
+  const hasRegistrosAccess = !!myPermission;
+  const canEditRegistros = myPermission?.access_level === 'edit';
+  const rsUrgentCount = hasRegistrosAccess
+    ? getRsNotifications(rsDM, rsCosm, rsPF, rsDigesa, certDigemid).filter(n => n.tipo === 'vencido' || n.tipo === 'hoy').length
+    : 0;
+
   return (
     <div className="app-layout">
-      <Sidebar user={user} screen={screen} setScreen={setScreen} isAdmin={isAdmin} onLogout={handleLogout} managerName={currentManager?.name} notifCount={myNotifs.length} />
+      <Sidebar user={user} screen={screen} setScreen={setScreen} isAdmin={isAdmin} onLogout={handleLogout} managerName={currentManager?.name} notifCount={myNotifs.length + rsUrgentCount} hasRegistrosAccess={hasRegistrosAccess} />
       <main className="main-content">
         {screen === 'dashboard' && <DashboardScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} categories={categories} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} tasks={tasks} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenEliminar={openEliminar} onOpenEditarOpp={openEditarOpp} onOpenNuevaTask={openNuevaTask} onOpenSeguimientoTask={openSeguimientoTask} onOpenLograrTask={openLograrTask} onOpenEliminarTask={openEliminarTask} onOpenEditarTask={openEditarTask} onOpenEditarFollowup={openEditarFollowup} expandedWorkers={expandedWorkers} toggleWorker={toggleWorker} expandedOpps={expandedOpps} toggleOpp={toggleOpp} expandedTasks={expandedTasks} toggleTask={toggleTask} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {screen === 'historial' && <HistorialScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenDetalle={openDetalle} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
-        {screen === 'notificaciones' && <NotificacionesScreen myTasks={myTasksList} myOpportunities={myOpportunities} allTasks={allTasksList} allOpportunities={allOpportunities} allEmployees={activeEmps} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenInTrabajadores={goToTaskInTrabajadores} />}
+        {screen === 'notificaciones' && <NotificacionesScreen myTasks={myTasksList} myOpportunities={myOpportunities} allTasks={allTasksList} allOpportunities={allOpportunities} allEmployees={activeEmps} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenInTrabajadores={goToTaskInTrabajadores} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} hasRegistrosAccess={hasRegistrosAccess} onOpenInRegistros={(tab) => { setScreen('registros'); setRsTab(tab); }} />}
+        {screen === 'registros' && hasRegistrosAccess && <RegistrosSanitariosScreen rsTab={rsTab} setRsTab={setRsTab} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} canEdit={canEditRegistros} onOpenNuevo={openRsNuevo} onOpenEditar={openRsEditar} onOpenEliminar={openRsEliminar} />}
+        {screen === 'registros' && !hasRegistrosAccess && <div className="error-msg">No tienes acceso a esta sección</div>}
         {screen === 'config' && isAdmin && <ConfigScreen employees={employees} categories={categories} onEmployeesUpdated={loadEmployees} onAssignmentsUpdated={loadAssignments} onCategoriesUpdated={loadCategories} />}
         {screen === 'config' && !isAdmin && <div className="error-msg">No tienes acceso a esta sección</div>}
       </main>
@@ -1451,6 +1775,53 @@ export default function App() {
           <div className="modal-actions">
             <button className="btn-secondary" onClick={closeModal}>Cancelar</button>
             <button className="btn-danger" onClick={eliminarOportunidad} style={{ flex: 1 }}>Sí, eliminar</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL: REGISTROS SANITARIOS - NUEVO/EDITAR */}
+      {(rsModal === 'nuevo' || rsModal === 'editar') && (
+        <Modal onClose={closeRsModal}>
+          <div className="modal-title">{rsModal === 'nuevo' ? 'Agregar' : 'Editar'} registro · {RS_SCHEMAS[rsTab].nombre}</div>
+          {RS_SCHEMAS[rsTab].fields.map(f => (
+            <div className="form-group" key={f.key}>
+              <label>{f.label}{f.required && ' *'}</label>
+              {f.type === 'textarea' ? (
+                <textarea className="form-textarea" value={rsForm[f.key] || ''} onChange={e => setRsForm(s => ({ ...s, [f.key]: e.target.value }))} />
+              ) : f.type === 'select' ? (
+                <select className="form-select" value={rsForm[f.key] || ''} onChange={e => setRsForm(s => ({ ...s, [f.key]: e.target.value }))}>
+                  <option value="">— Selecciona —</option>
+                  {f.options.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : f.type === 'date' ? (
+                <input type="date" className="form-input" value={rsForm[f.key] || ''} onChange={e => setRsForm(s => ({ ...s, [f.key]: e.target.value }))} />
+              ) : (
+                <input className="form-input" value={rsForm[f.key] || ''} onChange={e => setRsForm(s => ({ ...s, [f.key]: e.target.value }))} />
+              )}
+            </div>
+          ))}
+          {formError && <div className="error-msg">{formError}</div>}
+          <div className="modal-actions">
+            <button className="btn-secondary" onClick={closeRsModal}>Cancelar</button>
+            <button className="btn-primary" onClick={guardarRs} style={{ flex: 1 }}>Guardar</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL: REGISTROS SANITARIOS - ELIMINAR */}
+      {rsModal === 'eliminar' && rsEditItem && (
+        <Modal onClose={closeRsModal}>
+          <div className="modal-title">¿Eliminar este registro?</div>
+          <div className="modal-context">
+            <div className="modal-context-label">{RS_SCHEMAS[rsTab].nombre}</div>
+            <div className="modal-context-text">{rsEditItem[RS_SCHEMAS[rsTab].titleField]}</div>
+          </div>
+          <div style={{ fontSize: 14, color: '#666', lineHeight: 1.6, marginBottom: 20, background: '#fff3f3', padding: 16, borderRadius: 10, borderLeft: '4px solid #D64545' }}>
+            Esta acción eliminará el registro de forma permanente.
+          </div>
+          <div className="modal-actions">
+            <button className="btn-secondary" onClick={closeRsModal}>Cancelar</button>
+            <button className="btn-danger" onClick={eliminarRs} style={{ flex: 1 }}>Sí, eliminar</button>
           </div>
         </Modal>
       )}
