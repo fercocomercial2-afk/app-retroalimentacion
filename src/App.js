@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase, BUK_CONFIG, ADMIN_EMAILS } from './config/supabase';
+import jsPDF from 'jspdf';
 import './styles/App.css';
 
 /* ================================================================
@@ -911,6 +912,142 @@ function RsAlertBadge({ fVencimiento }) {
   return null;
 }
 
+/* ================================================================
+   GENERAR PDF DE REGISTROS SANITARIOS (con membretado Ferco)
+   ================================================================ */
+async function loadImageAsBase64(url) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function generarPdfRegistros(dataMap) {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const marginX = 14;
+  let logoBase64 = null;
+  try { logoBase64 = await loadImageAsBase64('/logo-ferco.png'); } catch { /* sin logo */ }
+
+  const tabsOrder = ['dm', 'cosm', 'pf', 'digesa', 'cert'];
+  let isFirstPage = true;
+
+  const drawHeader = (schema) => {
+    // Franja superior con logo + código de formato
+    doc.setFillColor(10, 22, 40); // #0a1628
+    doc.rect(0, 0, pageWidth, 22, 'F');
+    if (logoBase64) {
+      try { doc.addImage(logoBase64, 'PNG', marginX, 4, 14, 14); } catch { /* logo no soportado */ }
+    }
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text('FERCO MEDICAL', marginX + 18, 10);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text('RETROALIMENTACIÓN · REGISTROS', marginX + 18, 15.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(schema.codigo, pageWidth - marginX, 9, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text(schema.nombre, pageWidth - marginX, 15, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+  };
+
+  const drawFooter = () => {
+    doc.setFontSize(7.5);
+    doc.setTextColor(140, 140, 140);
+    doc.text(`Generado el ${new Date().toLocaleDateString('es-PE')} · Ferco Medical S.A.C.`, marginX, pageHeight - 8);
+    doc.text(`Página ${doc.internal.getNumberOfPages()}`, pageWidth - marginX, pageHeight - 8, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+  };
+
+  for (const tabKey of tabsOrder) {
+    const schema = RS_SCHEMAS[tabKey];
+    const items = dataMap[tabKey] || [];
+
+    if (!isFirstPage) doc.addPage();
+    isFirstPage = false;
+    drawHeader(schema);
+    let y = 30;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(`${schema.nombre} (${items.length} registro${items.length !== 1 ? 's' : ''})`, marginX, y);
+    y += 7;
+
+    if (items.length === 0) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9.5);
+      doc.setTextColor(120, 120, 120);
+      doc.text('No hay registros en esta categoría.', marginX, y);
+      doc.setTextColor(0, 0, 0);
+      drawFooter();
+      continue;
+    }
+
+    for (const item of items) {
+      // Calcular alto estimado de la tarjeta según cantidad de campos con texto largo
+      const fieldLines = schema.fields.map(f => {
+        const raw = f.type === 'date' ? fmtDateRS(item[f.key]) : (item[f.key] || '—');
+        const text = `${f.label}: ${raw}`;
+        return doc.splitTextToSize(text, pageWidth - marginX * 2 - 4);
+      });
+      const totalLines = fieldLines.reduce((sum, lines) => sum + lines.length, 0);
+      const cardHeight = 10 + totalLines * 4.3 + 4;
+
+      if (y + cardHeight > pageHeight - 14) {
+        drawFooter();
+        doc.addPage();
+        drawHeader(schema);
+        y = 30;
+      }
+
+      // Tarjeta: título + borde lateral
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.3);
+      doc.line(marginX, y, pageWidth - marginX, y);
+      y += 5;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10.5);
+      doc.setTextColor(21, 54, 44); // #15362C
+      doc.text(String(item[schema.titleField] || ''), marginX, y);
+      doc.setTextColor(0, 0, 0);
+      y += 5;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      for (const lines of fieldLines) {
+        for (const line of lines) {
+          if (y > pageHeight - 16) {
+            drawFooter();
+            doc.addPage();
+            drawHeader(schema);
+            y = 30;
+          }
+          doc.text(line, marginX + 2, y);
+          y += 4.3;
+        }
+      }
+      y += 4;
+    }
+
+    drawFooter();
+  }
+
+  doc.save(`Registros_Sanitarios_Ferco_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
 function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDigesa, certDigemid, canEdit, onOpenNuevo, onOpenEditar, onOpenEliminar }) {
   const dataMap = { dm: rsDM, cosm: rsCosm, pf: rsPF, digesa: rsDigesa, cert: certDigemid };
   const schema = RS_SCHEMAS[rsTab];
@@ -933,12 +1070,18 @@ function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDige
           <h1 className="page-title">Registros</h1>
           <p className="page-subtitle">{schema.codigo} · {schema.nombre}</p>
         </div>
-        {canEdit && (
-          <button className="btn-nueva" onClick={() => onOpenNuevo(rsTab)}>
-            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><line x1="9" y1="4" x2="9" y2="14"/><line x1="4" y1="9" x2="14" y2="9"/></svg>
-            Agregar
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn-secondary" onClick={() => generarPdfRegistros(dataMap)} title="Descargar PDF con todos los registros">
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ marginRight: 6, verticalAlign: 'middle' }}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+            Descargar PDF
           </button>
-        )}
+          {canEdit && (
+            <button className="btn-nueva" onClick={() => onOpenNuevo(rsTab)}>
+              <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><line x1="9" y1="4" x2="9" y2="14"/><line x1="4" y1="9" x2="14" y2="9"/></svg>
+              Agregar
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="tabs" style={{ marginBottom: 16, flexWrap: 'wrap' }}>
