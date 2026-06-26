@@ -9,6 +9,14 @@ const initials = (name) => name ? name.split(' ').map(s => s[0]).slice(0, 2).joi
 const firstName = (name) => name ? name.split(' ')[0] : '';
 const daysBetween = (d1, d2) => { const a = new Date(d1); const b = new Date(d2); a.setHours(0,0,0,0); b.setHours(0,0,0,0); return Math.max(0, Math.round((b - a) / 86400000)); };
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-PE', { day: '2-digit', month: 'short' }) : '—';
+const fmtDateRS = (d) => {
+  if (!d) return '—';
+  const date = new Date(d + (typeof d === 'string' && d.length === 10 ? 'T00:00:00' : ''));
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const yyyy = date.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+};
 const fmtDateLong = (d) => d ? new Date(d).toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
 const COLORS = ['#1F6FB2', '#2C8B5D', '#8A5BB0', '#C98A2B', '#D64545', '#3A8F8F', '#7B61FF', '#E07C4F'];
 
@@ -213,7 +221,7 @@ function Sidebar({ user, screen, setScreen, isAdmin, onLogout, managerName, noti
     { id: 'historial', icon: '🕐', label: 'Historial' },
     { id: 'notificaciones', icon: '🔔', label: 'Notificaciones' },
   ];
-  if (hasRegistrosAccess) items.push({ id: 'registros', icon: '🧪', label: 'Registros Sanitarios' });
+  if (hasRegistrosAccess) items.push({ id: 'registros', icon: '🧪', label: 'Registros' });
   if (isAdmin) items.push({ id: 'config', icon: '⚙️', label: 'Configuración' });
 
   return (
@@ -859,7 +867,7 @@ function NotificacionesScreen({ myTasks, myOpportunities, allTasks, allOpportuni
 
       {hasRegistrosAccess && (
         <div style={{ marginTop: 32 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#15362C', marginBottom: 12 }}>🧪 Registros Sanitarios</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#15362C', marginBottom: 12 }}>🧪 Registros</h2>
           {rsNotifs.length === 0 ? (
             <div className="empty-state">🎉 Sin registros sanitarios por vencer en los próximos 30 días.</div>
           ) : (
@@ -922,7 +930,7 @@ function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDige
     <div>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 className="page-title">Registros Sanitarios</h1>
+          <h1 className="page-title">Registros</h1>
           <p className="page-subtitle">{schema.codigo} · {schema.nombre}</p>
         </div>
         {canEdit && (
@@ -956,7 +964,7 @@ function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDige
                       <RsAlertBadge fVencimiento={item.f_vencimiento} />
                     </div>
                     <div className="hist-meta">
-                      Estado: {item.estado || '—'} · F. Vencimiento: {fmtDate(item.f_vencimiento)}
+                      Estado: {item.estado || '—'} · F. Vencimiento: {fmtDateRS(item.f_vencimiento)}
                     </div>
                     <button className="followup-toggle" onClick={() => toggleItem(item.id)}>
                       {isExpanded ? 'Ver menos' : 'Ver más'}
@@ -967,7 +975,7 @@ function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDige
                           <div key={f.key} style={{ fontSize: 13, color: '#555' }}>
                             <strong style={{ color: '#333' }}>{f.label}:</strong>{' '}
                             <span style={{ whiteSpace: 'pre-wrap' }}>
-                              {f.type === 'date' ? fmtDate(item[f.key]) : (item[f.key] || '—')}
+                              {f.type === 'date' ? fmtDateRS(item[f.key]) : (item[f.key] || '—')}
                             </span>
                           </div>
                         ))}
@@ -1402,12 +1410,43 @@ export default function App() {
       if (f.required && !rsForm[f.key]) return setFormError(`El campo "${f.label}" es obligatorio.`);
     }
     const payload = { ...rsForm, updated_at: new Date().toISOString() };
+    const usuarioEmail = user?.email || null;
+    const usuarioNombre = currentManager?.name || usuarioEmail || 'Usuario';
+
+    const formatValor = (f, valor) => {
+      if (!valor) return 'vacío';
+      return f.type === 'date' ? fmtDateRS(valor) : String(valor);
+    };
+
     if (rsModal === 'nuevo') {
-      const { error } = await supabase.from(schema.table).insert([payload]);
+      const { data, error } = await supabase.from(schema.table).insert([payload]).select().single();
       if (error) return setFormError('Error al guardar: ' + error.message);
+      await supabase.from('rs_audit_log').insert([{
+        tabla: schema.table, record_id: data.id, accion: 'CREAR',
+        valor_nuevo: `Registro creado: ${payload[schema.titleField] || ''}`, usuario_email: usuarioEmail, usuario_nombre: usuarioNombre
+      }]);
     } else {
+      // Detectar campos que realmente cambiaron, comparando contra el registro original
+      const cambios = [];
+      for (const f of schema.fields) {
+        const antes = rsEditItem[f.key] ?? '';
+        const ahora = rsForm[f.key] ?? '';
+        if (String(antes) !== String(ahora)) {
+          const descripcion = `Cambio ${f.label.toLowerCase()} a ${formatValor(f, ahora)}`;
+          cambios.push({ campo: f.label, antes: formatValor(f, antes), ahora: formatValor(f, ahora), descripcion });
+        }
+      }
       const { error } = await supabase.from(schema.table).update(payload).eq('id', rsEditItem.id);
       if (error) return setFormError('Error al guardar: ' + error.message);
+      if (cambios.length > 0) {
+        await supabase.from('rs_audit_log').insert(
+          cambios.map(c => ({
+            tabla: schema.table, record_id: rsEditItem.id, accion: 'EDITAR',
+            campo: c.campo, valor_anterior: c.antes, valor_nuevo: c.descripcion,
+            usuario_email: usuarioEmail, usuario_nombre: usuarioNombre
+          }))
+        );
+      }
     }
     closeRsModal();
     rsLoaders[rsTab]();
@@ -1415,6 +1454,12 @@ export default function App() {
 
   const eliminarRs = async () => {
     const schema = RS_SCHEMAS[rsTab];
+    const usuarioEmail = user?.email || null;
+    const usuarioNombre = currentManager?.name || usuarioEmail || 'Usuario';
+    await supabase.from('rs_audit_log').insert([{
+      tabla: schema.table, record_id: rsEditItem.id, accion: 'ELIMINAR',
+      valor_nuevo: `Registro eliminado: ${rsEditItem[schema.titleField] || ''}`, usuario_email: usuarioEmail, usuario_nombre: usuarioNombre
+    }]);
     await supabase.from(schema.table).delete().eq('id', rsEditItem.id);
     closeRsModal();
     rsLoaders[rsTab]();
