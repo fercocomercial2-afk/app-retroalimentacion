@@ -24,13 +24,6 @@ const COLORS = ['#1F6FB2', '#2C8B5D', '#8A5BB0', '#C98A2B', '#D64545', '#3A8F8F'
 /* ================================================================
    ESQUEMAS DE REGISTROS SANITARIOS
    ================================================================ */
-const RS_ESTADOS = {
-  'VIGENTE': { color: '#2C8B5D', bg: '#f0fff4' },
-  'EN TRÁMITE': { color: '#C98A2B', bg: '#fffbf0' },
-  'PARA SOLICITUD': { color: '#C98A2B', bg: '#fffbf0' },
-};
-const RS_ESTADO_OPTIONS = ['VIGENTE', 'EN TRÁMITE', 'PARA SOLICITUD'];
-
 const RS_SCHEMAS = {
   dm: {
     table: 'rs_dispositivos_medicos', codigo: 'FOR-GT-001', nombre: 'Dispositivos Médicos',
@@ -49,7 +42,7 @@ const RS_SCHEMAS = {
       { key: 'rubro', label: 'Rubro', type: 'text' },
       { key: 'f_autorizacion', label: 'Fecha de autorización', type: 'date' },
       { key: 'f_vencimiento', label: 'Fecha de vencimiento', type: 'date', required: true },
-      { key: 'estado', label: 'Estado', type: 'select', options: RS_ESTADO_OPTIONS },
+      { key: 'estado', label: 'Estado', type: 'select', options: ['VIGENTE', 'EN REINSCRIPCIÓN', 'PARA REINSCRIPCIÓN'] },
       { key: 'n_expediente', label: 'N° de expediente', type: 'text' },
       { key: 'observaciones', label: 'Observaciones', type: 'textarea' },
     ]
@@ -68,7 +61,7 @@ const RS_SCHEMAS = {
       { key: 'rubro', label: 'Rubro', type: 'text' },
       { key: 'f_autorizacion', label: 'Fecha de autorización', type: 'date' },
       { key: 'f_vencimiento', label: 'Fecha de vencimiento', type: 'date', required: true },
-      { key: 'estado', label: 'Estado', type: 'select', options: RS_ESTADO_OPTIONS },
+      { key: 'estado', label: 'Estado', type: 'select', options: ['VIGENTE', 'EN REINSCRIPCIÓN', 'PARA REINSCRIPCIÓN'] },
       { key: 'n_expediente', label: 'N° de expediente', type: 'text' },
       { key: 'observaciones', label: 'Observaciones', type: 'textarea' },
     ]
@@ -87,7 +80,7 @@ const RS_SCHEMAS = {
       { key: 'f_autorizacion', label: 'Fecha de autorización', type: 'date' },
       { key: 'f_vencimiento', label: 'Fecha de vencimiento', type: 'date', required: true },
       { key: 'tipo_tramite', label: 'Tipo de trámite', type: 'text' },
-      { key: 'estado', label: 'Estado', type: 'select', options: RS_ESTADO_OPTIONS },
+      { key: 'estado', label: 'Estado', type: 'select', options: ['VIGENTE', 'EN REINSCRIPCIÓN', 'PARA REINSCRIPCIÓN'] },
       { key: 'suce', label: 'SUCE', type: 'text' },
       { key: 'n_expediente', label: 'N° de expediente', type: 'text' },
     ]
@@ -106,7 +99,7 @@ const RS_SCHEMAS = {
       { key: 'pais_fabricacion', label: 'País de fabricación', type: 'text' },
       { key: 'f_autorizacion', label: 'Fecha de autorización', type: 'date' },
       { key: 'f_vencimiento', label: 'Fecha de vencimiento', type: 'date', required: true },
-      { key: 'estado', label: 'Estado', type: 'select', options: RS_ESTADO_OPTIONS },
+      { key: 'estado', label: 'Estado', type: 'select', options: ['VIGENTE', 'EN REINSCRIPCIÓN', 'PARA REINSCRIPCIÓN'] },
       { key: 'suce', label: 'SUCE', type: 'text' },
       { key: 'n_expediente', label: 'N° de expediente', type: 'text' },
     ]
@@ -121,7 +114,7 @@ const RS_SCHEMAS = {
       { key: 'almacenes', label: 'Almacenes', type: 'textarea' },
       { key: 'f_inicio_validez', label: 'Fecha de inicio de validez', type: 'date' },
       { key: 'f_vencimiento', label: 'Fecha de vencimiento', type: 'date', required: true },
-      { key: 'estado', label: 'Estado', type: 'select', options: RS_ESTADO_OPTIONS },
+      { key: 'estado', label: 'Estado', type: 'select', options: ['VIGENTE', 'EN REINSCRIPCIÓN', 'PARA REINSCRIPCIÓN'] },
       { key: 'n_expediente', label: 'N° de expediente', type: 'text' },
     ]
   },
@@ -221,20 +214,16 @@ function LoginScreen({ onLogin }) {
 /* ================================================================
    SIDEBAR - Ahora muestra ¡Hola Nombre!
    ================================================================ */
-function Sidebar({ user, screen, setScreen, isAdmin, onLogout, managerName, notifCount, hasRegistrosAccess, isRegistrosOnly }) {
+function Sidebar({ user, screen, setScreen, isAdmin, onLogout, managerName, notifCount, hasRegistrosAccess }) {
   const name = managerName || user?.email?.split('@')[0] || '';
-  const items = isRegistrosOnly ? [
-    { id: 'notificaciones', icon: '🔔', label: 'Notificaciones' },
-    { id: 'registros', icon: '🧪', label: 'Registros' },
-  ] : [
+  const items = [
     { id: 'dashboard', icon: '📊', label: 'Dashboard' },
     { id: 'trabajadores', icon: '👥', label: 'Mis Trabajadores' },
     { id: 'historial', icon: '🕐', label: 'Historial' },
     { id: 'notificaciones', icon: '🔔', label: 'Notificaciones' },
-    { id: 'reconocimientos', icon: '🏆', label: 'Reconocimientos' },
-    ...(hasRegistrosAccess ? [{ id: 'registros', icon: '🧪', label: 'Registros' }] : []),
-    ...(isAdmin ? [{ id: 'config', icon: '⚙️', label: 'Configuración' }] : []),
   ];
+  if (hasRegistrosAccess) items.push({ id: 'registros', icon: '🧪', label: 'Registros' });
+  if (isAdmin) items.push({ id: 'config', icon: '⚙️', label: 'Configuración' });
 
   return (
     <div className="sidebar">
@@ -820,12 +809,12 @@ function getRsNotifications(rsDM, rsCosm, rsPF, rsDigesa, certDigemid) {
   for (const item of all) {
     if (!item.f_vencimiento) continue;
     const dias = diasHasta(item.f_vencimiento);
-    if (dias === null || dias > 180) continue; // 6 meses = 180 días
+    if (dias === null || dias > 30) continue;
     const schema = RS_SCHEMAS[item._tab];
-    const tipo = dias < 0 ? 'vencido' : dias === 0 ? 'hoy' : dias <= 30 ? '1mes' : dias <= 60 ? '2meses' : '6meses';
     result.push({
       id: item.id, tab: item._tab, nombre: schema.nombre, titulo: item[schema.titleField],
-      codigo: item[schema.codeField], diasRestantes: dias, tipo
+      codigo: item[schema.codeField], diasRestantes: dias,
+      tipo: dias < 0 ? 'vencido' : dias === 0 ? 'hoy' : dias <= 15 ? '15dias' : '1mes'
     });
   }
   return result.sort((a, b) => a.diasRestantes - b.diasRestantes);
@@ -837,14 +826,12 @@ function NotificacionesScreen({ myTasks, myOpportunities, allTasks, allOpportuni
   const notifs = getNotifications(tasksToUse, oppsToUse, allEmployees);
   const rsNotifs = hasRegistrosAccess ? getRsNotifications(rsDM, rsCosm, rsPF, rsDigesa, certDigemid) : [];
 
-  const rsColor = (tipo) => tipo === 'vencido' ? '#D64545' : tipo === 'hoy' ? '#C98A2B' : tipo === '1mes' ? '#C98A2B' : tipo === '2meses' ? '#3A8F8F' : '#1F6FB2';
-  const rsIcon = (tipo) => tipo === 'vencido' ? '🔴' : tipo === 'hoy' ? '⚠️' : tipo === '1mes' ? '⚠️' : tipo === '2meses' ? '⏳' : '📅';
+  const rsColor = (tipo) => tipo === 'vencido' ? '#D64545' : tipo === 'hoy' ? '#C98A2B' : tipo === '15dias' ? '#C98A2B' : '#3A8F8F';
+  const rsIcon = (tipo) => tipo === 'vencido' ? '🔴' : tipo === 'hoy' ? '⚠️' : tipo === '15dias' ? '⚠️' : '⏳';
   const rsLabel = (n) => {
     if (n.tipo === 'vencido') return `Vencido hace ${Math.abs(n.diasRestantes)} día${Math.abs(n.diasRestantes) !== 1 ? 's' : ''}`;
     if (n.tipo === 'hoy') return 'Vence HOY';
-    if (n.tipo === '1mes') return `Vence en ${n.diasRestantes} días (menos de 1 mes)`;
-    if (n.tipo === '2meses') return `Vence en ${n.diasRestantes} días (menos de 2 meses)`;
-    return `Vence en ${n.diasRestantes} días (menos de 6 meses)`;
+    return `Vence en ${n.diasRestantes} día${n.diasRestantes !== 1 ? 's' : ''}`;
   };
 
   return (
@@ -860,33 +847,22 @@ function NotificacionesScreen({ myTasks, myOpportunities, allTasks, allOpportuni
         <div className="empty-state">🎉 No hay tareas vencidas ni que venzan hoy.</div>
       ) : (
         <div className="hist-list">
-          {notifs.map(n => {
-            const empFull = allEmployees.find(e => e.id === n.opp.employee_id);
-            const wsp = empFull?.whatsapp;
-            const msg = encodeURIComponent(`Hola ${n.emp?.name?.split(' ')[0] || ''}, te recuerdo que la tarea "${n.task.title}" del proyecto "${n.opp.title || n.opp.description}" ${n.type === 'hoy' ? 'vence HOY' : 'está vencida'}. Por favor, actualiza su estado en la plataforma. Gracias.`);
-            return (
-              <div key={n.id} className="hist-card" style={{ borderLeft: `4px solid ${n.type === 'hoy' ? '#C98A2B' : '#D64545'}` }}>
-                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                  <div style={{ fontSize: 22, cursor: 'pointer' }} onClick={() => onOpenInTrabajadores(n.opp, n.task)}>{n.type === 'hoy' ? '⚠️' : '🔴'}</div>
-                  <div style={{ flex: 1 }} onClick={() => onOpenInTrabajadores(n.opp, n.task)}>
-                    <div className="hist-desc" style={{ fontWeight: 700 }}>
-                      {n.type === 'hoy' ? 'Vence HOY: ' : `Vencida hace ${Math.abs(n.diffDays)} día${Math.abs(n.diffDays) !== 1 ? 's' : ''}: `}
-                      "{n.task.title}"
-                    </div>
-                    <div className="hist-meta">
-                      Proyecto: {n.opp.title || n.opp.description} · Colaborador: {n.emp?.name || '—'}
-                    </div>
+          {notifs.map(n => (
+            <div key={n.id} className="hist-card" onClick={() => onOpenInTrabajadores(n.opp, n.task)} style={{ borderLeft: `4px solid ${n.type === 'hoy' ? '#C98A2B' : '#D64545'}` }}>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ fontSize: 22 }}>{n.type === 'hoy' ? '⚠️' : '🔴'}</div>
+                <div style={{ flex: 1 }}>
+                  <div className="hist-desc" style={{ fontWeight: 700 }}>
+                    {n.type === 'hoy' ? 'Vence HOY: ' : `Vencida hace ${Math.abs(n.diffDays)} día${Math.abs(n.diffDays) !== 1 ? 's' : ''}: `}
+                    "{n.task.title}"
                   </div>
-                  {isAdmin && wsp && (
-                    <a href={`https://api.whatsapp.com/send?phone=51${wsp}&text=${msg}`} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ flexShrink: 0, background: '#25D366', color: 'white', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.122.558 4.112 1.528 5.835L.057 23.854c-.09.354.224.668.578.578l6.019-1.471A11.937 11.937 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.88 0-3.641-.522-5.143-1.428l-.366-.217-3.801.929.956-3.801-.233-.381A9.956 9.956 0 012 12C2 6.478 6.478 2 12 2s10 4.478 10 10-4.478 10-10 10z"/></svg>
-                      WhatsApp
-                    </a>
-                  )}
+                  <div className="hist-meta">
+                    Proyecto: {n.opp.title || n.opp.description} · Colaborador: {n.emp?.name || '—'}
+                  </div>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
 
@@ -931,9 +907,8 @@ function RsAlertBadge({ fVencimiento }) {
   if (dias === null) return null;
   if (dias < 0) return <span className="task-alert" title="Vencido"> 🔴 Vencido hace {Math.abs(dias)} día{Math.abs(dias) !== 1 ? 's' : ''}</span>;
   if (dias === 0) return <span className="task-alert" title="Vence hoy"> ⚠️ Vence hoy</span>;
-  if (dias <= 30) return <span className="task-alert" title="Vence en menos de 1 mes"> ⚠️ Vence en {dias} días</span>;
-  if (dias <= 60) return <span style={{ color: '#3A8F8F', fontWeight: 700 }} title="Vence en menos de 2 meses"> ⏳ Vence en {dias} días</span>;
-  if (dias <= 180) return <span style={{ color: '#1F6FB2', fontWeight: 700 }} title="Vence en menos de 6 meses"> 📅 Vence en {dias} días</span>;
+  if (dias <= 15) return <span className="task-alert" title="Vence en 15 días o menos"> ⚠️ Vence en {dias} día{dias !== 1 ? 's' : ''}</span>;
+  if (dias <= 30) return <span style={{ color: '#C98A2B', fontWeight: 700 }} title="Vence en 1 mes o menos"> ⏳ Vence en {dias} días</span>;
   return null;
 }
 
@@ -1073,7 +1048,7 @@ async function generarPdfRegistros(dataMap) {
   doc.save(`Registros_Sanitarios_Ferco_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
-function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDigesa, certDigemid, rsAuditLog, canEdit, onOpenNuevo, onOpenEditar, onOpenEliminar }) {
+function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDigesa, certDigemid, canEdit, onOpenNuevo, onOpenEditar, onOpenEliminar }) {
   const dataMap = { dm: rsDM, cosm: rsCosm, pf: rsPF, digesa: rsDigesa, cert: certDigemid };
   const schema = RS_SCHEMAS[rsTab];
   const items = dataMap[rsTab] || [];
@@ -1123,8 +1098,6 @@ function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDige
         <div className="hist-list">
           {items.map(item => {
             const isExpanded = expandedItems[item.id];
-            const estadoInfo = RS_ESTADOS[item.estado] || { color: '#888', bg: '#f5f5f5' };
-            const historial = rsAuditLog ? rsAuditLog.filter(a => a.tabla === schema.table && a.record_id === item.id) : [];
             return (
               <div key={item.id} className="hist-card" style={{ cursor: 'default' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
@@ -1133,13 +1106,8 @@ function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDige
                       {item[schema.titleField]}
                       <RsAlertBadge fVencimiento={item.f_vencimiento} />
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, marginBottom: 4, flexWrap: 'wrap' }}>
-                      {item.estado && (
-                        <span style={{ background: estadoInfo.bg, color: estadoInfo.color, border: `1px solid ${estadoInfo.color}40`, borderRadius: 6, padding: '2px 10px', fontWeight: 700, fontSize: 12 }}>
-                          {item.estado}
-                        </span>
-                      )}
-                      <span className="hist-meta" style={{ margin: 0 }}>F. Vencimiento: {fmtDateRS(item.f_vencimiento)}</span>
+                    <div className="hist-meta">
+                      Estado: {item.estado || '—'} · F. Vencimiento: {fmtDateRS(item.f_vencimiento)}
                     </div>
                     <button className="followup-toggle" onClick={() => toggleItem(item.id)}>
                       {isExpanded ? 'Ver menos' : 'Ver más'}
@@ -1154,18 +1122,6 @@ function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDige
                             </span>
                           </div>
                         ))}
-                        {historial.length > 0 && (
-                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e0e0e0' }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#999', marginBottom: 6, letterSpacing: '0.5px' }}>HISTORIAL DE CAMBIOS</div>
-                            {historial.map(h => (
-                              <div key={h.id} style={{ fontSize: 12, color: '#666', marginBottom: 5, lineHeight: 1.5 }}>
-                                <span style={{ color: '#999' }}>{new Date(h.created_at).toLocaleString('es-PE', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                                {' — '}<strong>{h.usuario_nombre || h.usuario_email || 'Usuario'}</strong>
-                                {': '}{h.valor_nuevo || h.accion}
-                              </div>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
@@ -1179,50 +1135,6 @@ function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDige
                       </button>
                     </div>
                   )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ================================================================
-   RECONOCIMIENTOS
-   ================================================================ */
-function ReconocimientosScreen({ recognitions, employees, opportunities }) {
-  const empById = {};
-  employees.forEach(e => { empById[e.id] = e; });
-  const oppById = {};
-  opportunities.forEach(o => { oppById[o.id] = o; });
-
-  return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">Reconocimientos</h1>
-        <p className="page-subtitle">Reconocimientos otorgados a colaboradores</p>
-      </div>
-      {recognitions.length === 0 ? (
-        <div className="empty-state">Aún no hay reconocimientos otorgados.</div>
-      ) : (
-        <div className="hist-list">
-          {recognitions.map(r => {
-            const emp = empById[r.employee_id];
-            const opp = oppById[r.opportunity_id];
-            return (
-              <div key={r.id} className="hist-card" style={{ cursor: 'default', borderLeft: '4px solid #C98A2B' }}>
-                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                  <div style={{ fontSize: 22 }}>🏆</div>
-                  <div style={{ flex: 1 }}>
-                    <div className="hist-desc" style={{ fontWeight: 700 }}>{emp?.name || '—'}</div>
-                    <div className="hist-meta">
-                      {opp ? (opp.title || opp.description) : '—'} · {fmtDate(r.created_at)}
-                    </div>
-                    {r.comment && <div style={{ fontSize: 13, color: '#555', marginTop: 4, whiteSpace: 'pre-wrap' }}>"{r.comment}"</div>}
-                    <div style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>Otorgado por: {r.given_by_name || r.given_by_email}</div>
-                  </div>
                 </div>
               </div>
             );
@@ -1513,12 +1425,6 @@ export default function App() {
   const [rsPF, setRsPF] = useState([]);
   const [rsDigesa, setRsDigesa] = useState([]);
   const [certDigemid, setCertDigemid] = useState([]);
-  const [rsAuditLog, setRsAuditLog] = useState([]);
-  const [recognitions, setRecognitions] = useState([]);
-  const [recognitionModal, setRecognitionModal] = useState(false);
-  const [pendingLograrOpp, setPendingLograrOpp] = useState(null);
-  const [recognitionComment, setRecognitionComment] = useState('');
-  const [giveRecognition, setGiveRecognition] = useState(false);
 
   // UI state
   const [modal, setModal] = useState(null);
@@ -1599,18 +1505,10 @@ export default function App() {
     const { data } = await supabase.from('certificaciones_digemid').select('*').order('f_vencimiento', { ascending: true });
     setCertDigemid(data || []);
   }, []);
-  const loadRsAuditLog = useCallback(async () => {
-    const { data } = await supabase.from('rs_audit_log').select('*').order('created_at', { ascending: false });
-    setRsAuditLog(data || []);
-  }, []);
-  const loadRecognitions = useCallback(async () => {
-    const { data } = await supabase.from('recognitions').select('*').order('created_at', { ascending: false });
-    setRecognitions(data || []);
-  }, []);
   const loadAll = useCallback(() => {
     loadEmployees(); loadOpportunities(); loadFollowups(); loadAssignments(); loadCategories(); loadTasks();
-    loadModulePermissions(); loadRsDM(); loadRsCosm(); loadRsPF(); loadRsDigesa(); loadCertDigemid(); loadRsAuditLog(); loadRecognitions();
-  }, [loadEmployees, loadOpportunities, loadFollowups, loadAssignments, loadCategories, loadTasks, loadModulePermissions, loadRsDM, loadRsCosm, loadRsPF, loadRsDigesa, loadCertDigemid, loadRsAuditLog, loadRecognitions]);
+    loadModulePermissions(); loadRsDM(); loadRsCosm(); loadRsPF(); loadRsDigesa(); loadCertDigemid();
+  }, [loadEmployees, loadOpportunities, loadFollowups, loadAssignments, loadCategories, loadTasks, loadModulePermissions, loadRsDM, loadRsCosm, loadRsPF, loadRsDigesa, loadCertDigemid]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -1632,31 +1530,8 @@ export default function App() {
   const openNueva = () => { setModal('nueva'); setFEmpleado(''); setFCategory(''); setFTitle(''); setFormError(''); };
   const openSeguimiento = (opp) => { setModal('seguimiento'); setActiveOpp(opp); setActiveTask(null); setFObs(''); setFormError(''); };
   const openSeguimientoTask = (opp, task) => { setModal('seguimientoTask'); setActiveOpp(opp); setActiveTask(task); setFObs(''); setFormError(''); };
-  const openLograr = (opp) => {
-    setPendingLograrOpp(opp);
-    setRecognitionComment('');
-    setGiveRecognition(false);
-    setRecognitionModal(true);
-  };
-  const continuarLograr = async () => {
-    if (giveRecognition && recognitionComment.trim()) {
-      const mgr = employees.find(e => e.email === user?.email);
-      await supabase.from('recognitions').insert([{
-        employee_id: pendingLograrOpp.employee_id,
-        opportunity_id: pendingLograrOpp.id,
-        comment: recognitionComment.trim(),
-        given_by_email: user?.email || null,
-        given_by_name: currentManager?.name || user?.email || 'Usuario',
-      }]);
-      loadRecognitions();
-    }
-    setRecognitionModal(false);
-    setModal('lograr');
-    setActiveOpp(pendingLograrOpp);
-    setActiveTask(null);
-    setFLograrObs('');
-    setFormError('');
-  };
+  const openLograr = (opp) => { setModal('lograr'); setActiveOpp(opp); setActiveTask(null); setFLograrObs(''); setFormError(''); };
+  const openLograrTask = (opp, task) => { setModal('lograrTask'); setActiveOpp(opp); setActiveTask(task); setFTaskObs(''); setFormError(''); };
   const openDetalle = (opp) => { setModal('detalle'); setActiveOpp(opp); };
   const openEliminar = (opp) => { setModal('eliminar'); setActiveOpp(opp); setActiveTask(null); };
   const openEliminarTask = (opp, task) => { setModal('eliminarTask'); setActiveOpp(opp); setActiveTask(task); };
@@ -1718,7 +1593,6 @@ export default function App() {
     }
     closeRsModal();
     rsLoaders[rsTab]();
-    loadRsAuditLog();
   };
 
   const eliminarRs = async () => {
@@ -1732,7 +1606,6 @@ export default function App() {
     await supabase.from(schema.table).delete().eq('id', rsEditItem.id);
     closeRsModal();
     rsLoaders[rsTab]();
-    loadRsAuditLog();
   };
   const closeModal = () => { setModal(null); setActiveOpp(null); setActiveTask(null); setEditTarget(null); setFormError(''); };
 
@@ -1771,7 +1644,7 @@ export default function App() {
   const eliminarTask = async () => {
     await supabase.from('tasks').delete().eq('id', activeTask.id);
     await supabase.from('audit_log').insert([{ action: 'DELETE_TASK', employee_id: activeOpp.employee_id, details: `Tarea eliminada: "${activeTask.title}"` }]);
-    closeModal(); loadTasks(); loadOpportunities();
+    closeModal(); loadTasks();
   };
   const guardarEdicion = async () => {
     if (editTarget.type === 'opp') {
@@ -1863,51 +1736,23 @@ export default function App() {
   const myPermission = modulePermissions.find(p => p.employee_email === user?.email && p.module === 'registros_sanitarios');
   const hasRegistrosAccess = !!myPermission;
   const canEditRegistros = myPermission?.access_level === 'edit';
-  const isRegistrosOnly = hasRegistrosAccess && !isAdmin && user?.email === 'lrocca@ferco-medical.com';
   const rsUrgentCount = hasRegistrosAccess
     ? getRsNotifications(rsDM, rsCosm, rsPF, rsDigesa, certDigemid).filter(n => n.tipo === 'vencido' || n.tipo === 'hoy').length
     : 0;
 
   return (
     <div className="app-layout">
-      <Sidebar user={user} screen={screen} setScreen={setScreen} isAdmin={isAdmin} onLogout={handleLogout} managerName={currentManager?.name} notifCount={myNotifs.length + rsUrgentCount} hasRegistrosAccess={hasRegistrosAccess} isRegistrosOnly={isRegistrosOnly} />
+      <Sidebar user={user} screen={screen} setScreen={setScreen} isAdmin={isAdmin} onLogout={handleLogout} managerName={currentManager?.name} notifCount={myNotifs.length + rsUrgentCount} hasRegistrosAccess={hasRegistrosAccess} />
       <main className="main-content">
-        {!isRegistrosOnly && screen === 'dashboard' && <DashboardScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} categories={categories} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
-        {!isRegistrosOnly && screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} tasks={tasks} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenEliminar={openEliminar} onOpenEditarOpp={openEditarOpp} onOpenNuevaTask={openNuevaTask} onOpenSeguimientoTask={openSeguimientoTask} onOpenLograrTask={openLograrTask} onOpenEliminarTask={openEliminarTask} onOpenEditarTask={openEditarTask} onOpenEditarFollowup={openEditarFollowup} expandedWorkers={expandedWorkers} toggleWorker={toggleWorker} expandedOpps={expandedOpps} toggleOpp={toggleOpp} expandedTasks={expandedTasks} toggleTask={toggleTask} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
-        {!isRegistrosOnly && screen === 'historial' && <HistorialScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenDetalle={openDetalle} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
+        {screen === 'dashboard' && <DashboardScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} categories={categories} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
+        {screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} tasks={tasks} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenEliminar={openEliminar} onOpenEditarOpp={openEditarOpp} onOpenNuevaTask={openNuevaTask} onOpenSeguimientoTask={openSeguimientoTask} onOpenLograrTask={openLograrTask} onOpenEliminarTask={openEliminarTask} onOpenEditarTask={openEditarTask} onOpenEditarFollowup={openEditarFollowup} expandedWorkers={expandedWorkers} toggleWorker={toggleWorker} expandedOpps={expandedOpps} toggleOpp={toggleOpp} expandedTasks={expandedTasks} toggleTask={toggleTask} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
+        {screen === 'historial' && <HistorialScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenDetalle={openDetalle} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {screen === 'notificaciones' && <NotificacionesScreen myTasks={myTasksList} myOpportunities={myOpportunities} allTasks={allTasksList} allOpportunities={allOpportunities} allEmployees={activeEmps} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenInTrabajadores={goToTaskInTrabajadores} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} hasRegistrosAccess={hasRegistrosAccess} onOpenInRegistros={(tab) => { setScreen('registros'); setRsTab(tab); }} />}
-        {!isRegistrosOnly && screen === 'reconocimientos' && <ReconocimientosScreen recognitions={recognitions} employees={activeEmps} opportunities={allOpportunities} />}
-        {screen === 'registros' && hasRegistrosAccess && <RegistrosSanitariosScreen rsTab={rsTab} setRsTab={setRsTab} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} rsAuditLog={rsAuditLog} canEdit={canEditRegistros} onOpenNuevo={openRsNuevo} onOpenEditar={openRsEditar} onOpenEliminar={openRsEliminar} />}
+        {screen === 'registros' && hasRegistrosAccess && <RegistrosSanitariosScreen rsTab={rsTab} setRsTab={setRsTab} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} canEdit={canEditRegistros} onOpenNuevo={openRsNuevo} onOpenEditar={openRsEditar} onOpenEliminar={openRsEliminar} />}
         {screen === 'registros' && !hasRegistrosAccess && <div className="error-msg">No tienes acceso a esta sección</div>}
-        {!isRegistrosOnly && screen === 'config' && isAdmin && <ConfigScreen employees={employees} categories={categories} onEmployeesUpdated={loadEmployees} onAssignmentsUpdated={loadAssignments} onCategoriesUpdated={loadCategories} />}
-        {!isRegistrosOnly && screen === 'config' && !isAdmin && <div className="error-msg">No tienes acceso a esta sección</div>}
+        {screen === 'config' && isAdmin && <ConfigScreen employees={employees} categories={categories} onEmployeesUpdated={loadEmployees} onAssignmentsUpdated={loadAssignments} onCategoriesUpdated={loadCategories} />}
+        {screen === 'config' && !isAdmin && <div className="error-msg">No tienes acceso a esta sección</div>}
       </main>
-
-      {/* MODAL: RECONOCIMIENTO (antes de Lograr) */}
-      {recognitionModal && pendingLograrOpp && (
-        <Modal onClose={() => setRecognitionModal(false)}>
-          <div className="modal-title">¿Dar reconocimiento?</div>
-          <div className="modal-context">
-            <div className="modal-context-label">Oportunidad / Proyecto</div>
-            <div className="modal-context-text">{pendingLograrOpp.title || pendingLograrOpp.description}</div>
-            <div className="modal-context-meta">Colaborador: {employees.find(e => e.id === pendingLograrOpp.employee_id)?.name || '—'}</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <input type="checkbox" id="chkRecon" checked={giveRecognition} onChange={e => setGiveRecognition(e.target.checked)} style={{ width: 18, height: 18, cursor: 'pointer' }} />
-            <label htmlFor="chkRecon" style={{ fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>🏆 Otorgar reconocimiento al colaborador</label>
-          </div>
-          {giveRecognition && (
-            <div className="form-group">
-              <label>Comentario del reconocimiento (opcional)</label>
-              <textarea className="form-textarea" placeholder="¿Por qué merece este reconocimiento?" value={recognitionComment} onChange={e => setRecognitionComment(e.target.value)} />
-            </div>
-          )}
-          <div className="modal-actions">
-            <button className="btn-secondary" onClick={() => setRecognitionModal(false)}>Cancelar</button>
-            <button className="btn-lograr-confirm" onClick={continuarLograr}>Continuar →</button>
-          </div>
-        </Modal>
-      )}
 
       {/* MODAL: NUEVA OPORTUNIDAD */}
       {modal === 'nueva' && (
