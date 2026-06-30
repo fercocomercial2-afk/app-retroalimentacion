@@ -1519,6 +1519,8 @@ export default function App() {
   const [pendingLograrOpp, setPendingLograrOpp] = useState(null);
   const [recognitionComment, setRecognitionComment] = useState('');
   const [giveRecognition, setGiveRecognition] = useState(false);
+  const [pendingLograrTask, setPendingLograrTask] = useState(null);
+  const [showLograrTask, setShowLograrTask] = useState(false);
 
   // UI state
   const [modal, setModal] = useState(null);
@@ -1637,6 +1639,10 @@ export default function App() {
     setRecognitionComment('');
     setGiveRecognition(false);
     setRecognitionModal(true);
+  };
+  const openLograrTask = (task) => {
+    setPendingLograrTask(task);
+    setShowLograrTask(true);
   };
   const continuarLograr = async () => {
     if (giveRecognition && recognitionComment.trim()) {
