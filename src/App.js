@@ -355,6 +355,44 @@ function ExpandableText({ text, limit = 150, className = '' }) {
 }
 
 /* ================================================================
+   VALORACIÓN DE SEGUIMIENTOS (colores rojo → verde)
+   ================================================================ */
+const RATING_COLORS = ['#D64545', '#E0793C', '#C98A2B', '#8FB339', '#2C8B5D'];
+const RATING_LABELS = ['Muy bajo', 'Bajo', 'Regular', 'Bueno', 'Excelente'];
+function RatingPicker({ value, onChange }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      {[1, 2, 3, 4, 5].map(n => (
+        <button key={n} type="button" onClick={() => onChange(n)} title={RATING_LABELS[n - 1]}
+          style={{ width: 30, height: 30, borderRadius: '50%', border: value === n ? '2px solid #15362C' : '2px solid transparent', background: RATING_COLORS[n - 1], cursor: 'pointer', opacity: value && value !== n ? 0.35 : 1, transition: 'all 0.15s' }} />
+      ))}
+      {value ? <span style={{ fontSize: 12, color: '#888', marginLeft: 4 }}>{RATING_LABELS[value - 1]}</span> : <span style={{ fontSize: 12, color: '#bbb', marginLeft: 4 }}>Sin calificar</span>}
+    </div>
+  );
+}
+function RatingBadge({ value }) {
+  if (!value) return null;
+  return <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: RATING_COLORS[value - 1], marginRight: 7, verticalAlign: 'middle' }} title={`Valoración: ${RATING_LABELS[value - 1]} (${value}/5)`} />;
+}
+
+/* ================================================================
+   CALIFICACIÓN DE TAREAS (estrellas 1-5)
+   ================================================================ */
+function StarRating({ value, onChange }) {
+  return (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {[1, 2, 3, 4, 5].map(n => (
+        <button key={n} type="button" onClick={() => onChange(n)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 26, lineHeight: 1, color: n <= value ? '#C98A2B' : '#e0ddd4' }}>★</button>
+      ))}
+    </div>
+  );
+}
+function StarDisplay({ value, size = 13 }) {
+  if (!value) return null;
+  return <span style={{ fontSize: size, color: '#C98A2B', letterSpacing: 1 }} title={`${value}/5 estrellas`}>{'★'.repeat(value)}{'☆'.repeat(5 - value)}</span>;
+}
+
+/* ================================================================
    DASHBOARD
    ================================================================ */
 function DashboardScreen({ myReports, allEmployees, opportunities, allOpportunities, categories, isAdmin, adminView, setAdminView }) {
@@ -459,6 +497,33 @@ function DashboardScreen({ myReports, allEmployees, opportunities, allOpportunit
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================
+   PROGRESO (% de avance de una oportunidad/proyecto)
+   ================================================================ */
+function oppProgress(opp, isProyecto, oppTasks, oppFollowups) {
+  if (opp.status === 'logrado') return 100;
+  if (isProyecto) {
+    if (oppTasks.length === 0) return 0;
+    return Math.round(oppTasks.filter(t => t.status === 'logrado').length / oppTasks.length * 100);
+  }
+  const rated = oppFollowups.filter(f => f.rating);
+  if (rated.length === 0) return 0;
+  const avg = rated.reduce((s, f) => s + f.rating, 0) / rated.length;
+  return Math.round(avg / 5 * 100);
+}
+function OppProgressBar({ pct }) {
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#888', marginBottom: 4 }}>
+        <span>Avance</span><span style={{ fontWeight: 700 }}>{pct}%</span>
+      </div>
+      <div style={{ background: '#F2F0E9', borderRadius: 99, height: 8, overflow: 'hidden' }}>
+        <div style={{ width: `${Math.max(pct, 2)}%`, height: '100%', background: pct >= 100 ? '#2C8B5D' : 'linear-gradient(90deg, #D64545, #C98A2B, #2C8B5D)', borderRadius: 99, transition: 'width 0.4s ease' }} />
       </div>
     </div>
   );
@@ -573,6 +638,7 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                     const due = new Date(t.due_date + 'T00:00:00');
                     return due <= today0;
                   });
+                  const progressPct = oppProgress(opp, isProyecto, oppTasks, oppFollowups);
 
                   return (
                     <div key={opp.id} className="opp-card">
@@ -598,16 +664,18 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                         <div className="opp-row-body">
                           <div className="opp-meta">
                             <span>Creada {fmtDate(opp.created_at)} · hace {daysAgo} día{daysAgo !== 1 ? 's' : ''}</span>
+                            {opp.due_date && <span>Fecha límite: {fmtDate(opp.due_date)}</span>}
                             {lastFu && <span>Último seg. {fmtDate(lastFu.created_at)} · hace {lastFuDays} día{lastFuDays !== 1 ? 's' : ''}</span>}
                           </div>
+                          <OppProgressBar pct={progressPct} />
                           {oppFollowups.length > 0 && (
                             <div className="followup-list">
                               {oppFollowups.map(fu => (
                                 <div key={fu.id} className="followup-item">
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
                                     <div style={{ flex: 1 }}>
-                                      <div className="followup-date">{fmtDate(fu.created_at)}</div>
-                                      <div className="followup-text"><ExpandableText text={fu.observation} limit={200} /></div>
+                                      <div className="followup-date">{fmtDate(fu.created_at)}{fu.due_date && <span> · Vence: {fmtDate(fu.due_date)}</span>}</div>
+                                      <div className="followup-text"><RatingBadge value={fu.rating} /><ExpandableText text={fu.observation} limit={200} /></div>
                                     </div>
                                     {(adminView !== 'all') && (
                                       <button className="btn-editar" onClick={() => onOpenEditarFollowup(fu)} title="Editar seguimiento">
@@ -622,11 +690,11 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                           {/* Solo mostrar botones si es "Mis Trabajadores" o admin */}
                           {(adminView !== 'all') && (
                             <div className="opp-actions">
-                              {(!isProyecto || oppTasks.length === 0) && <button className="btn-seg" onClick={() => onOpenSeguimiento(opp)}>Seguimiento</button>}
+                              {!isProyecto && <button className="btn-seg" onClick={() => onOpenSeguimiento(opp)}>Seguimiento</button>}
                               {isProyecto && <button className="btn-seg" onClick={() => onOpenNuevaTask(opp)}>+ Tarea</button>}
                               {!isProyecto && <button className="btn-lograr" onClick={() => onOpenLograr(opp)}>Logrado</button>}
                               {isProyecto && (
-                                <button className="btn-lograr" disabled={tasksPendientes > 0} title={tasksPendientes > 0 ? 'No puedes cerrar el proyecto: aún hay tareas pendientes' : ''} onClick={() => tasksPendientes === 0 && onOpenLograr(opp)}>Logrado</button>
+                                <button className="btn-lograr" disabled={tasksPendientes > 0 || oppTasks.length === 0} title={oppTasks.length === 0 ? 'Agrega al menos una tarea para poder cerrar el proyecto' : tasksPendientes > 0 ? 'No puedes cerrar el proyecto: aún hay tareas pendientes' : ''} onClick={() => (tasksPendientes === 0 && oppTasks.length > 0) && onOpenLograr(opp)}>Logrado</button>
                               )}
                               <button className="btn-eliminar" onClick={() => onOpenEliminar(opp)} title="Eliminar oportunidad">
                                 <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/></svg>
@@ -653,16 +721,16 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                                       <span className="task-check">{task.status === 'logrado' ? '☑' : '☐'}</span>
                                       <div style={{ flex: 1 }}>
                                         <div className="task-title">{task.title}{isVencida && <span className="task-alert"> ⚠️ Vencida</span>}{isHoy && <span className="task-alert"> ⚠️ Vence hoy</span>}</div>
-                                        {(task.due_date || taskFollowups.length > 0) && (
-                                          <div className="task-meta">
-                                            {task.due_date && <span>Vence: {fmtDate(task.due_date)}{taskFollowups.length > 0 ? ' · ' : ''}</span>}
-                                            {taskFollowups.length > 0 && (
-                                              <button className="followup-toggle" style={{ display: 'inline', padding: 0 }} onClick={() => toggleTask(task.id)}>
-                                                {isTaskExpanded ? 'Ocultar seguimientos' : `${taskFollowups.length} seguimiento${taskFollowups.length > 1 ? 's' : ''}`}
-                                              </button>
-                                            )}
-                                          </div>
-                                        )}
+                                        <div className="task-meta">
+                                          <span>Creada {fmtDate(task.created_at)}</span>
+                                          {task.due_date && <span> · Vence: {fmtDate(task.due_date)}</span>}
+                                          {task.status === 'logrado' && task.rating && <span> · <StarDisplay value={task.rating} /></span>}
+                                          {taskFollowups.length > 0 && (
+                                            <span> · <button className="followup-toggle" style={{ display: 'inline', padding: 0 }} onClick={() => toggleTask(task.id)}>
+                                              {isTaskExpanded ? 'Ocultar seguimientos' : `${taskFollowups.length} seguimiento${taskFollowups.length > 1 ? 's' : ''}`}
+                                            </button></span>
+                                          )}
+                                        </div>
                                       </div>
                                       {(adminView !== 'all') && (
                                         <button className="btn-editar" onClick={() => onOpenEditarTask(opp, task)} title="Editar tarea">
@@ -674,8 +742,8 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                                       <div key={fu.id} className="followup-item" style={{ marginLeft: 26 }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
                                           <div style={{ flex: 1 }}>
-                                            <div className="followup-date">{fmtDate(fu.created_at)}</div>
-                                            <div className="followup-text"><ExpandableText text={fu.observation} limit={200} /></div>
+                                            <div className="followup-date">{fmtDate(fu.created_at)}{fu.due_date && <span> · Vence: {fmtDate(fu.due_date)}</span>}</div>
+                                            <div className="followup-text"><RatingBadge value={fu.rating} /><ExpandableText text={fu.observation} limit={200} /></div>
                                           </div>
                                           {(adminView !== 'all') && (
                                             <button className="btn-editar" onClick={() => onOpenEditarFollowup(fu)} title="Editar seguimiento">
@@ -688,7 +756,7 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                                     {(adminView !== 'all') && isPendiente && (
                                       <div className="opp-actions" style={{ marginLeft: 26, marginTop: 8 }}>
                                         <button className="btn-seg" onClick={() => onOpenSeguimientoTask(opp, task)}>Seguimiento</button>
-                                        <button className="btn-lograr" onClick={() => onOpenLograrTask(opp, task)}>Logrado</button>
+                                        <button className="btn-lograr" disabled={taskFollowups.length === 0} title={taskFollowups.length === 0 ? 'Agrega al menos un seguimiento antes de marcar como lograda' : ''} onClick={() => taskFollowups.length > 0 && onOpenLograrTask(opp, task)}>Logrado</button>
                                         <button className="btn-eliminar" onClick={() => onOpenEliminarTask(opp, task)} title="Eliminar tarea">
                                           <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/></svg>
                                         </button>
@@ -793,6 +861,8 @@ function HistorialScreen({ myReports, allEmployees, opportunities, allOpportunit
 function getNotifications(tasks, opportunities, allEmployees) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const list = [];
+  const jefeOf = (emp) => emp ? allEmployees.find(e => e.buk_employee_id === emp.manager_id) : null;
+
   tasks.filter(t => t.status === 'pendiente' && t.due_date).forEach(t => {
     const due = new Date(t.due_date + 'T00:00:00');
     const opp = opportunities.find(o => o.id === t.opportunity_id);
@@ -800,9 +870,19 @@ function getNotifications(tasks, opportunities, allEmployees) {
     const emp = allEmployees.find(e => e.id === opp.employee_id);
     const diffDays = Math.round((due - today) / 86400000);
     if (diffDays <= 0) {
-      list.push({ id: t.id, task: t, opp, emp, diffDays, type: diffDays === 0 ? 'hoy' : 'vencida' });
+      list.push({ id: 'task_' + t.id, kind: 'task', task: t, opp, emp, jefe: jefeOf(emp), diffDays, type: diffDays === 0 ? 'hoy' : 'vencida' });
     }
   });
+
+  opportunities.filter(o => o.status === 'proceso' && o.due_date).forEach(o => {
+    const due = new Date(o.due_date + 'T00:00:00');
+    const emp = allEmployees.find(e => e.id === o.employee_id);
+    const diffDays = Math.round((due - today) / 86400000);
+    if (diffDays <= 0) {
+      list.push({ id: 'opp_' + o.id, kind: 'opp', task: null, opp: o, emp, jefe: jefeOf(emp), diffDays, type: diffDays === 0 ? 'hoy' : 'vencida' });
+    }
+  });
+
   return list.sort((a, b) => a.diffDays - b.diffDays);
 }
 
@@ -863,14 +943,20 @@ function NotificacionesScreen({ myTasks, myOpportunities, allTasks, allOpportuni
                 <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => onOpenInTrabajadores(n.opp, n.task)}>
                   <div className="hist-desc" style={{ fontWeight: 700 }}>
                     {n.type === 'hoy' ? 'Vence HOY: ' : `Vencida hace ${Math.abs(n.diffDays)} día${Math.abs(n.diffDays) !== 1 ? 's' : ''}: `}
-                    "{n.task.title}"
+                    "{n.kind === 'task' ? n.task.title : (n.opp.title || n.opp.description)}"
+                    {n.kind === 'opp' && <span style={{ fontWeight: 400, color: '#888' }}> ({n.opp.title ? 'proyecto' : 'oportunidad'})</span>}
                   </div>
                   <div className="hist-meta">
-                    Proyecto: {n.opp.title || n.opp.description} · Colaborador: {n.emp?.name || '—'}
+                    {n.kind === 'task' && <>Proyecto: {n.opp.title || n.opp.description} · </>}
+                    Colaborador: {n.emp?.name || '—'} · Jefe: {n.jefe?.name || n.emp?.manager_name || '—'}
                   </div>
                 </div>
-                {isAdmin && n.emp?.whatsapp && (
-                  <a href={`https://api.whatsapp.com/send?phone=51${n.emp.whatsapp}&text=${encodeURIComponent(`Hola ${firstName(n.emp.name)}, te escribo respecto a la tarea "${n.task.title}" del proyecto "${n.opp.title || n.opp.description}".`)}`} target="_blank" rel="noopener noreferrer" className="btn-whatsapp" title={`WhatsApp a ${n.emp.name}`} onClick={e => e.stopPropagation()}>
+                {isAdmin && n.jefe?.whatsapp && (
+                  <a href={`https://api.whatsapp.com/send?phone=51${n.jefe.whatsapp}&text=${encodeURIComponent(
+                    n.kind === 'task'
+                      ? `Hola ${firstName(n.jefe.name)}, te escribo para recordarte que a tu colaborador ${n.emp?.name || ''} se le venció la tarea "${n.task.title}" del proyecto "${n.opp.title || n.opp.description}". Por favor, no olvides hacer seguimiento a tu equipo.`
+                      : `Hola ${firstName(n.jefe.name)}, te escribo para recordarte que a tu colaborador ${n.emp?.name || ''} se le venció el plazo de "${n.opp.title || n.opp.description}". Por favor, no olvides hacer seguimiento a tu equipo.`
+                  )}`} target="_blank" rel="noopener noreferrer" className="btn-whatsapp" title={`WhatsApp a ${n.jefe.name}`} onClick={e => e.stopPropagation()}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492l4.612-1.467A11.926 11.926 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818c-2.168 0-4.177-.648-5.868-1.76l-.42-.28-3.062.974.998-2.987-.307-.486A9.794 9.794 0 012.182 12 9.818 9.818 0 0112 2.182 9.818 9.818 0 0121.818 12 9.818 9.818 0 0112 21.818z"/></svg>
                   </a>
                 )}
@@ -887,17 +973,25 @@ function NotificacionesScreen({ myTasks, myOpportunities, allTasks, allOpportuni
             <div className="empty-state">🎉 Sin registros sanitarios por vencer en los próximos 6 meses.</div>
           ) : (
             <div className="hist-list">
-              {rsNotifs.map(n => (
-                <div key={n.tab + n.id} className="hist-card" onClick={() => onOpenInRegistros(n.tab)} style={{ borderLeft: `4px solid ${rsColor(n.tipo)}` }}>
-                  <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                    <div style={{ fontSize: 22 }}>{rsIcon(n.tipo)}</div>
-                    <div style={{ flex: 1 }}>
-                      <div className="hist-desc" style={{ fontWeight: 700 }}>{rsLabel(n)}: "{n.titulo}"</div>
-                      <div className="hist-meta">{n.nombre} · Código: {n.codigo}</div>
+              {rsNotifs.map(n => {
+                const responsables = allEmployees.filter(e => ['tmoya@ferco-medical.com', 'lrocca@ferco-medical.com'].includes(e.email) && e.whatsapp);
+                return (
+                  <div key={n.tab + n.id} className="hist-card" style={{ borderLeft: `4px solid ${rsColor(n.tipo)}` }}>
+                    <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                      <div style={{ fontSize: 22 }}>{rsIcon(n.tipo)}</div>
+                      <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => onOpenInRegistros(n.tab)}>
+                        <div className="hist-desc" style={{ fontWeight: 700 }}>{rsLabel(n)}: "{n.titulo}"</div>
+                        <div className="hist-meta">{n.nombre} · Código: {n.codigo}</div>
+                      </div>
+                      {isAdmin && responsables.map(r => (
+                        <a key={r.id} href={`https://api.whatsapp.com/send?phone=51${r.whatsapp}&text=${encodeURIComponent(`Hola ${firstName(r.name)}, te escribo para recordarte que el registro sanitario "${n.titulo}" (${n.codigo}) de ${n.nombre} ${n.tipo === 'vencido' ? `venció hace ${Math.abs(n.diasRestantes)} días` : n.tipo === 'hoy' ? 'vence HOY' : `vence en ${n.diasRestantes} días`}. Por favor gestionar la renovación a tiempo.`)}`} target="_blank" rel="noopener noreferrer" className="btn-whatsapp" title={`WhatsApp a ${r.name}`} onClick={e => e.stopPropagation()}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492l4.612-1.467A11.926 11.926 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818c-2.168 0-4.177-.648-5.868-1.76l-.42-.28-3.062.974.998-2.987-.307-.486A9.794 9.794 0 012.182 12 9.818 9.818 0 0112 2.182 9.818 9.818 0 0121.818 12 9.818 9.818 0 0112 21.818z"/></svg>
+                        </a>
+                      ))}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -1480,7 +1574,9 @@ function ReconocimientosScreen({ recognitions, employees, opportunities, categor
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, color: '#15362C', marginBottom: 4 }}>🏆 {emp?.name || '—'}</div>
                     {cat && <span className="cat-badge" style={{ background: cat.color + '20', color: cat.color, borderLeft: `3px solid ${cat.color}`, marginBottom: 6 }}>{cat.name}</span>}
-                    <div className="hist-desc">{opp?.title || opp?.description || '—'}</div>
+                    <div className="hist-desc" style={{ fontWeight: 700 }}>{opp?.title || opp?.description || '—'}</div>
+                    {opp && <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>Creado {fmtDate(opp.created_at)}{opp.closed_at ? ` · Cerrado ${fmtDate(opp.closed_at)}` : ''}</div>}
+                    {opp?.final_observation && <div style={{ fontSize: 13, color: '#555', marginTop: 8, background: '#f0fff4', padding: '8px 12px', borderRadius: 8, borderLeft: '3px solid #2C8B5D' }}><strong>Observación de cierre:</strong> {opp.final_observation}</div>}
                     {r.comment && <div style={{ fontSize: 13, color: '#555', marginTop: 6, fontStyle: 'italic', background: '#fffbeb', padding: '8px 12px', borderRadius: 8 }}>"{r.comment}"</div>}
                     <div className="hist-meta" style={{ marginTop: 6 }}>
                       Por: {r.given_by_name || r.given_by_email || '—'} · {fmtDate(r.created_at)}
@@ -1540,12 +1636,16 @@ export default function App() {
   // Form state
   const [fEmpleado, setFEmpleado] = useState('');
   const [fObs, setFObs] = useState('');
+  const [fObsRating, setFObsRating] = useState(0);
+  const [fObsDue, setFObsDue] = useState('');
   const [fLograrObs, setFLograrObs] = useState('');
   const [fCategory, setFCategory] = useState('');
   const [fTitle, setFTitle] = useState('');
+  const [fDue, setFDue] = useState('');
   const [fTaskTitle, setFTaskTitle] = useState('');
   const [fTaskDue, setFTaskDue] = useState('');
   const [fTaskObs, setFTaskObs] = useState('');
+  const [fTaskRating, setFTaskRating] = useState(0);
   const [fEditTitle, setFEditTitle] = useState('');
   const [fEditCategory, setFEditCategory] = useState('');
   const [fEditDue, setFEditDue] = useState('');
@@ -1634,18 +1734,18 @@ export default function App() {
   const toggleOpp = (id) => setExpandedOpps(s => ({ ...s, [id]: !s[id] }));
   const toggleTask = (id) => setExpandedTasks(s => ({ ...s, [id]: !s[id] }));
 
-  const openNueva = () => { setModal('nueva'); setFEmpleado(''); setFCategory(''); setFTitle(''); setFormError(''); };
-  const openSeguimiento = (opp) => { setModal('seguimiento'); setActiveOpp(opp); setActiveTask(null); setFObs(''); setFormError(''); };
-  const openSeguimientoTask = (opp, task) => { setModal('seguimientoTask'); setActiveOpp(opp); setActiveTask(task); setFObs(''); setFormError(''); };
+  const openNueva = () => { setModal('nueva'); setFEmpleado(''); setFCategory(''); setFTitle(''); setFDue(''); setFormError(''); };
+  const openSeguimiento = (opp) => { setModal('seguimiento'); setActiveOpp(opp); setActiveTask(null); setFObs(''); setFObsRating(0); setFObsDue(''); setFormError(''); };
+  const openSeguimientoTask = (opp, task) => { setModal('seguimientoTask'); setActiveOpp(opp); setActiveTask(task); setFObs(''); setFObsRating(0); setFObsDue(''); setFormError(''); };
   const openLograr = (opp) => { setModal('lograr'); setActiveOpp(opp); setActiveTask(null); setFLograrObs(''); setFormError(''); };
-  const openLograrTask = (opp, task) => { setModal('lograrTask'); setActiveOpp(opp); setActiveTask(task); setFTaskObs(''); setFormError(''); };
+  const openLograrTask = (opp, task) => { setModal('lograrTask'); setActiveOpp(opp); setActiveTask(task); setFTaskObs(''); setFTaskRating(0); setFormError(''); };
   const openDetalle = (opp) => { setModal('detalle'); setActiveOpp(opp); };
   const openEliminar = (opp) => { setModal('eliminar'); setActiveOpp(opp); setActiveTask(null); };
   const openEliminarTask = (opp, task) => { setModal('eliminarTask'); setActiveOpp(opp); setActiveTask(task); };
   const openNuevaTask = (opp) => { setModal('nuevaTask'); setActiveOpp(opp); setFTaskTitle(''); setFTaskDue(''); setFormError(''); };
-  const openEditarOpp = (opp) => { setModal('editarOpp'); setEditTarget({ type: 'opp', item: opp }); setFEditTitle(opp.title || opp.description || ''); setFEditCategory(opp.category_id || ''); setFormError(''); };
+  const openEditarOpp = (opp) => { setModal('editarOpp'); setEditTarget({ type: 'opp', item: opp }); setFEditTitle(opp.title || opp.description || ''); setFEditCategory(opp.category_id || ''); setFEditDue(opp.due_date || ''); setFormError(''); };
   const openEditarTask = (opp, task) => { setModal('editarTask'); setActiveOpp(opp); setEditTarget({ type: 'task', item: task }); setFEditTitle(task.title); setFEditDue(task.due_date || ''); setFormError(''); };
-  const openEditarFollowup = (fu) => { setModal('editarFollowup'); setEditTarget({ type: 'followup', item: fu }); setFObs(fu.observation); setFormError(''); };
+  const openEditarFollowup = (fu) => { setModal('editarFollowup'); setEditTarget({ type: 'followup', item: fu }); setFObs(fu.observation); setFObsRating(fu.rating || 0); setFObsDue(fu.due_date || ''); setFormError(''); };
 
   const openRsNuevo = (tabKey) => { setRsTab(tabKey); setRsModal('nuevo'); setRsEditItem(null); setRsForm({}); setFormError(''); };
   const openRsEditar = (tabKey, item) => { setRsTab(tabKey); setRsModal('editar'); setRsEditItem(item); setRsForm({ ...item }); setFormError(''); };
@@ -1723,17 +1823,17 @@ export default function App() {
     const isProyecto = cat?.name === 'Proyectos';
     if (fTitle.trim().length < 3) return setFormError(`El nombre ${isProyecto ? 'del proyecto' : 'de la oportunidad'} debe tener al menos 3 caracteres.`);
     const mgr = employees.find(e => e.email === user?.email);
-    await supabase.from('opportunities').insert([{ employee_id: fEmpleado, manager_id: mgr?.id || null, description: fTitle.trim(), title: isProyecto ? fTitle.trim() : null, status: 'proceso', category_id: fCategory }]);
+    await supabase.from('opportunities').insert([{ employee_id: fEmpleado, manager_id: mgr?.id || null, description: fTitle.trim(), title: isProyecto ? fTitle.trim() : null, status: 'proceso', category_id: fCategory, due_date: fDue || null }]);
     setExpandedWorkers(s => ({ ...s, [fEmpleado]: true }));
     closeModal(); setScreen('trabajadores'); loadOpportunities();
   };
   const guardarSeguimiento = async () => {
     if (fObs.trim().length < 5) return setFormError('La observación debe tener al menos 5 caracteres.');
     if (activeTask) {
-      await supabase.from('followups').insert([{ task_id: activeTask.id, observation: fObs.trim() }]);
+      await supabase.from('followups').insert([{ task_id: activeTask.id, observation: fObs.trim(), rating: fObsRating || null, due_date: fObsDue || null }]);
       setExpandedTasks(s => ({ ...s, [activeTask.id]: true }));
     } else {
-      await supabase.from('followups').insert([{ opportunity_id: activeOpp.id, observation: fObs.trim() }]);
+      await supabase.from('followups').insert([{ opportunity_id: activeOpp.id, observation: fObs.trim(), rating: fObsRating || null, due_date: fObsDue || null }]);
       setExpandedOpps(s => ({ ...s, [activeOpp.id]: true }));
     }
     closeModal(); loadFollowups();
@@ -1745,7 +1845,8 @@ export default function App() {
     closeModal(); loadTasks();
   };
   const confirmarLogradoTask = async () => {
-    await supabase.from('tasks').update({ status: 'logrado', closed_at: new Date().toISOString(), final_observation: fTaskObs.trim() || 'Tarea completada.', updated_at: new Date().toISOString() }).eq('id', activeTask.id);
+    if (!fTaskRating) return setFormError('Selecciona una calificación de 1 a 5 estrellas.');
+    await supabase.from('tasks').update({ status: 'logrado', closed_at: new Date().toISOString(), final_observation: fTaskObs.trim() || 'Tarea completada.', rating: fTaskRating, updated_at: new Date().toISOString() }).eq('id', activeTask.id);
     closeModal(); loadTasks();
   };
   const eliminarTask = async () => {
@@ -1758,7 +1859,7 @@ export default function App() {
       const cat = categories.find(c => c.id === fEditCategory);
       const isProyecto = cat?.name === 'Proyectos';
       if (fEditTitle.trim().length < 3) return setFormError(`El nombre ${isProyecto ? 'del proyecto' : 'de la oportunidad'} debe tener al menos 3 caracteres.`);
-      await supabase.from('opportunities').update({ description: fEditTitle.trim(), title: isProyecto ? fEditTitle.trim() : null, category_id: fEditCategory, updated_at: new Date().toISOString() }).eq('id', editTarget.item.id);
+      await supabase.from('opportunities').update({ description: fEditTitle.trim(), title: isProyecto ? fEditTitle.trim() : null, category_id: fEditCategory, due_date: fEditDue || null, updated_at: new Date().toISOString() }).eq('id', editTarget.item.id);
       await supabase.from('audit_log').insert([{ action: 'EDIT_OPP', employee_id: editTarget.item.employee_id, details: `Oportunidad editada: "${editTarget.item.description}" → "${fEditTitle.trim()}"` }]);
       loadOpportunities();
     } else if (editTarget.type === 'task') {
@@ -1768,7 +1869,7 @@ export default function App() {
       loadTasks();
     } else if (editTarget.type === 'followup') {
       if (fObs.trim().length < 5) return setFormError('La observación debe tener al menos 5 caracteres.');
-      await supabase.from('followups').update({ observation: fObs.trim() }).eq('id', editTarget.item.id);
+      await supabase.from('followups').update({ observation: fObs.trim(), rating: fObsRating || null, due_date: fObsDue || null }).eq('id', editTarget.item.id);
       loadFollowups();
     }
     closeModal();
@@ -1904,6 +2005,9 @@ export default function App() {
           <div className="form-group"><label>{categories.find(c => c.id === fCategory)?.name === 'Proyectos' ? 'Nombre del proyecto' : 'Nombre de la oportunidad'}</label>
             <input className="form-input" placeholder={categories.find(c => c.id === fCategory)?.name === 'Proyectos' ? 'Ej: Rediseño del catálogo de productos' : 'Ej: Mejorar puntualidad en reuniones'} value={fTitle} onChange={e => setFTitle(e.target.value)} />
           </div>
+          <div className="form-group"><label>Fecha límite (opcional)</label>
+            <input type="date" className="form-input" value={fDue} onChange={e => setFDue(e.target.value)} />
+          </div>
           {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
             <button className="btn-secondary" onClick={closeModal}>Cancelar</button>
@@ -1946,6 +2050,12 @@ export default function App() {
           <div className="form-group"><label>Observación</label>
             <textarea className="form-textarea" placeholder="Describe avances, observaciones..." value={fObs} onChange={e => setFObs(e.target.value)} />
           </div>
+          <div className="form-group"><label>Valoración (opcional)</label>
+            <RatingPicker value={fObsRating} onChange={setFObsRating} />
+          </div>
+          <div className="form-group"><label>Fecha límite (opcional)</label>
+            <input type="date" className="form-input" value={fObsDue} onChange={e => setFObsDue(e.target.value)} />
+          </div>
           {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
             <button className="btn-secondary" onClick={closeModal}>Cancelar</button>
@@ -1966,6 +2076,10 @@ export default function App() {
           <div className="form-group"><label>Observación final (opcional)</label>
             <textarea className="form-textarea" placeholder="Resultados obtenidos..." value={fTaskObs} onChange={e => setFTaskObs(e.target.value)} />
           </div>
+          <div className="form-group"><label>Calificación de la tarea</label>
+            <StarRating value={fTaskRating} onChange={setFTaskRating} />
+          </div>
+          {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
             <button className="btn-secondary" onClick={closeModal}>Cancelar</button>
             <button className="btn-lograr-confirm" onClick={confirmarLogradoTask}>Confirmar</button>
@@ -2003,6 +2117,9 @@ export default function App() {
           <div className="form-group"><label>{categories.find(c => c.id === fEditCategory)?.name === 'Proyectos' ? 'Nombre del proyecto' : 'Nombre de la oportunidad'}</label>
             <input className="form-input" value={fEditTitle} onChange={e => setFEditTitle(e.target.value)} />
           </div>
+          <div className="form-group"><label>Fecha límite (opcional)</label>
+            <input type="date" className="form-input" value={fEditDue} onChange={e => setFEditDue(e.target.value)} />
+          </div>
           {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
             <button className="btn-secondary" onClick={closeModal}>Cancelar</button>
@@ -2036,6 +2153,12 @@ export default function App() {
           <div className="form-group"><label>Observación</label>
             <textarea className="form-textarea" value={fObs} onChange={e => setFObs(e.target.value)} />
           </div>
+          <div className="form-group"><label>Valoración (opcional)</label>
+            <RatingPicker value={fObsRating} onChange={setFObsRating} />
+          </div>
+          <div className="form-group"><label>Fecha límite (opcional)</label>
+            <input type="date" className="form-input" value={fObsDue} onChange={e => setFObsDue(e.target.value)} />
+          </div>
           {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
             <button className="btn-secondary" onClick={closeModal}>Cancelar</button>
@@ -2055,6 +2178,12 @@ export default function App() {
           </div>
           <div className="form-group"><label>Observación</label>
             <textarea className="form-textarea" placeholder="Describe avances, observaciones..." value={fObs} onChange={e => setFObs(e.target.value)} />
+          </div>
+          <div className="form-group"><label>Valoración (opcional)</label>
+            <RatingPicker value={fObsRating} onChange={setFObsRating} />
+          </div>
+          <div className="form-group"><label>Fecha límite (opcional)</label>
+            <input type="date" className="form-input" value={fObsDue} onChange={e => setFObsDue(e.target.value)} />
           </div>
           {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
