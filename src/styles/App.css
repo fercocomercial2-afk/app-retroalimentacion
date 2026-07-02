@@ -254,7 +254,7 @@ body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; b
 .task-card.task-done { opacity: 0.65; }
 .task-header { display: flex; align-items: flex-start; gap: 10px; }
 .task-check { font-size: 16px; line-height: 1.4; flex-shrink: 0; }
-.task-title { font-size: 13.5px; font-weight: 700; color: #1C2421; }
+.task-title { font-size: 13.5px; font-weight: 700; color: #1C2421; white-space: pre-wrap; line-height: 1.5; }
 .task-desc { font-size: 13px; color: #666; margin-top: 2px; line-height: 1.4; }
 .task-meta { font-size: 11.5px; color: #999; margin-top: 4px; }
 .task-alert { color: #D64545; font-weight: 700; }
@@ -269,3 +269,6 @@ body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; b
 .opp-name-line { font-size: 14px; font-weight: 600; color: #1C2421; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .opp-row-body { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f0f0; }
 .followup-list { margin-bottom: 4px; }
+/* ==================== WHATSAPP BUTTON ==================== */
+.btn-whatsapp { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; background: #25D366; border-radius: 50%; border: none; cursor: pointer; flex-shrink: 0; transition: all 0.2s; text-decoration: none; }
+.btn-whatsapp:hover { background: #1DA851; transform: scale(1.1); box-shadow: 0 2px 8px rgba(37, 211, 102, 0.4); }
