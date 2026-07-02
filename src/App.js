@@ -862,7 +862,7 @@ function HistorialScreen({ myReports, allEmployees, opportunities, allOpportunit
 /* ================================================================
    NOTIFICACIONES
    ================================================================ */
-function getNotifications(tasks, opportunities, allEmployees) {
+function getNotifications(tasks, opportunities, followups, allEmployees) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const list = [];
   const jefeOf = (emp) => emp ? allEmployees.find(e => e.buk_employee_id === emp.manager_id) : null;
@@ -885,6 +885,23 @@ function getNotifications(tasks, opportunities, allEmployees) {
     if (diffDays <= 0) {
       list.push({ id: 'opp_' + o.id, kind: 'opp', task: null, opp: o, emp, jefe: jefeOf(emp), diffDays, type: diffDays === 0 ? 'hoy' : 'vencida' });
     }
+  });
+
+  followups.filter(f => f.due_date).forEach(f => {
+    const due = new Date(f.due_date + 'T00:00:00');
+    const diffDays = Math.round((due - today) / 86400000);
+    if (diffDays > 0) return;
+    let opp = null, task = null;
+    if (f.task_id) {
+      task = tasks.find(t => t.id === f.task_id);
+      if (!task || task.status !== 'pendiente') return;
+      opp = opportunities.find(o => o.id === task.opportunity_id);
+    } else if (f.opportunity_id) {
+      opp = opportunities.find(o => o.id === f.opportunity_id);
+    }
+    if (!opp || opp.status !== 'proceso') return;
+    const emp = allEmployees.find(e => e.id === opp.employee_id);
+    list.push({ id: 'fu_' + f.id, kind: 'followup', task, opp, emp, jefe: jefeOf(emp), diffDays, type: diffDays === 0 ? 'hoy' : 'vencida', followup: f });
   });
 
   return list.sort((a, b) => a.diffDays - b.diffDays);
@@ -913,10 +930,11 @@ function getRsNotifications(rsDM, rsCosm, rsPF, rsDigesa, certDigemid) {
   return result.sort((a, b) => a.diasRestantes - b.diasRestantes);
 }
 
-function NotificacionesScreen({ myTasks, myOpportunities, allTasks, allOpportunities, allEmployees, isAdmin, adminView, setAdminView, onOpenInTrabajadores, rsDM, rsCosm, rsPF, rsDigesa, certDigemid, hasRegistrosAccess, onOpenInRegistros }) {
+function NotificacionesScreen({ myTasks, myOpportunities, allTasks, allOpportunities, myFollowups, allFollowups, allEmployees, isAdmin, adminView, setAdminView, onOpenInTrabajadores, rsDM, rsCosm, rsPF, rsDigesa, certDigemid, hasRegistrosAccess, onOpenInRegistros }) {
   const tasksToUse = adminView === 'all' ? allTasks : myTasks;
   const oppsToUse = adminView === 'all' ? allOpportunities : myOpportunities;
-  const notifs = getNotifications(tasksToUse, oppsToUse, allEmployees);
+  const followupsToUse = adminView === 'all' ? allFollowups : myFollowups;
+  const notifs = getNotifications(tasksToUse, oppsToUse, followupsToUse, allEmployees);
   const rsNotifs = hasRegistrosAccess ? getRsNotifications(rsDM, rsCosm, rsPF, rsDigesa, certDigemid) : [];
 
   const rsColor = (tipo) => tipo === 'vencido' ? '#D64545' : tipo === 'hoy' ? '#C98A2B' : tipo === '1mes' ? '#D64545' : tipo === '2meses' ? '#C98A2B' : '#3A8F8F';
@@ -926,18 +944,19 @@ function NotificacionesScreen({ myTasks, myOpportunities, allTasks, allOpportuni
     if (n.tipo === 'hoy') return 'Vence HOY';
     return `Vence en ${n.diasRestantes} día${n.diasRestantes !== 1 ? 's' : ''}`;
   };
+  const kindLabel = (n) => n.kind === 'task' ? n.task.title : n.kind === 'followup' ? (n.task ? n.task.title : (n.opp.title || n.opp.description)) : (n.opp.title || n.opp.description);
 
   return (
     <div>
       <div className="page-header">
         <h1 className="page-title">Notificaciones</h1>
-        <p className="page-subtitle">Tareas vencidas o que vencen hoy</p>
+        <p className="page-subtitle">Tareas, proyectos y seguimientos vencidos o que vencen hoy</p>
       </div>
 
       <AdminViewToggle view={adminView} setView={setAdminView} isAdmin={isAdmin} />
 
       {notifs.length === 0 ? (
-        <div className="empty-state">🎉 No hay tareas vencidas ni que venzan hoy.</div>
+        <div className="empty-state">🎉 No hay tareas, proyectos ni seguimientos vencidos ni que venzan hoy.</div>
       ) : (
         <div className="hist-list">
           {notifs.map(n => (
@@ -947,11 +966,13 @@ function NotificacionesScreen({ myTasks, myOpportunities, allTasks, allOpportuni
                 <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => onOpenInTrabajadores(n.opp, n.task)}>
                   <div className="hist-desc" style={{ fontWeight: 700 }}>
                     {n.type === 'hoy' ? 'Vence HOY: ' : `Vencida hace ${Math.abs(n.diffDays)} día${Math.abs(n.diffDays) !== 1 ? 's' : ''}: `}
-                    "{n.kind === 'task' ? n.task.title : (n.opp.title || n.opp.description)}"
+                    {n.kind === 'followup' ? <>Seguimiento pendiente en "{kindLabel(n)}"</> : <>"{kindLabel(n)}"</>}
                     {n.kind === 'opp' && <span style={{ fontWeight: 400, color: '#888' }}> ({n.opp.title ? 'proyecto' : 'oportunidad'})</span>}
                   </div>
                   <div className="hist-meta">
                     {n.kind === 'task' && <>Proyecto: {n.opp.title || n.opp.description} · </>}
+                    {n.kind === 'followup' && n.task && <>Tarea: {n.task.title} · Proyecto: {n.opp.title || n.opp.description} · </>}
+                    {n.kind === 'followup' && !n.task && <>Oportunidad: {n.opp.title || n.opp.description} · </>}
                     Colaborador: {n.emp?.name || '—'} · Jefe: {n.jefe?.name || n.emp?.manager_name || '—'}
                   </div>
                 </div>
@@ -959,6 +980,8 @@ function NotificacionesScreen({ myTasks, myOpportunities, allTasks, allOpportuni
                   <a href={`https://api.whatsapp.com/send?phone=51${n.jefe.whatsapp}&text=${encodeURIComponent(
                     n.kind === 'task'
                       ? `Hola ${firstName(n.jefe.name)}, te escribo para recordarte que a tu colaborador ${n.emp?.name || ''} se le venció la tarea "${n.task.title}" del proyecto "${n.opp.title || n.opp.description}". Por favor, no olvides hacer seguimiento a tu equipo.`
+                      : n.kind === 'followup'
+                      ? `Hola ${firstName(n.jefe.name)}, te escribo para recordarte que tu colaborador ${n.emp?.name || ''} tiene un seguimiento pendiente en "${kindLabel(n)}". Por favor, no olvides hacer seguimiento a tu equipo.`
                       : `Hola ${firstName(n.jefe.name)}, te escribo para recordarte que a tu colaborador ${n.emp?.name || ''} se le venció el plazo de "${n.opp.title || n.opp.description}". Por favor, no olvides hacer seguimiento a tu equipo.`
                   )}`} target="_blank" rel="noopener noreferrer" className="btn-whatsapp" title={`WhatsApp a ${n.jefe.name}`} onClick={e => e.stopPropagation()}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492l4.612-1.467A11.926 11.926 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818c-2.168 0-4.177-.648-5.868-1.76l-.42-.28-3.062.974.998-2.987-.307-.486A9.794 9.794 0 012.182 12 9.818 9.818 0 0112 2.182 9.818 9.818 0 0121.818 12 9.818 9.818 0 0112 21.818z"/></svg>
@@ -1959,7 +1982,11 @@ export default function App() {
   const allTaskOppIds = new Set(allOpportunities.map(o => o.id));
   const myTasksList = tasks.filter(t => myTaskOppIds.has(t.opportunity_id));
   const allTasksList = tasks.filter(t => allTaskOppIds.has(t.opportunity_id));
-  const myNotifs = getNotifications(myTasksList, myOpportunities, activeEmps);
+  const myTaskIds = new Set(myTasksList.map(t => t.id));
+  const allTaskIds = new Set(allTasksList.map(t => t.id));
+  const myFollowupsList = followups.filter(f => (f.opportunity_id && myTaskOppIds.has(f.opportunity_id)) || (f.task_id && myTaskIds.has(f.task_id)));
+  const allFollowupsList = followups.filter(f => (f.opportunity_id && allTaskOppIds.has(f.opportunity_id)) || (f.task_id && allTaskIds.has(f.task_id)));
+  const myNotifs = getNotifications(myTasksList, myOpportunities, myFollowupsList, activeEmps);
 
   const goToTaskInTrabajadores = (opp, task) => {
     setScreen('trabajadores');
@@ -1982,7 +2009,7 @@ export default function App() {
         {!isRegistrosOnly && screen === 'dashboard' && <DashboardScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} categories={categories} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {!isRegistrosOnly && screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} tasks={tasks} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenEliminar={openEliminar} onOpenEditarOpp={openEditarOpp} onOpenNuevaTask={openNuevaTask} onOpenSeguimientoTask={openSeguimientoTask} onOpenLograrTask={openLograrTask} onOpenEliminarTask={openEliminarTask} onOpenEditarTask={openEditarTask} onOpenEditarFollowup={openEditarFollowup} expandedWorkers={expandedWorkers} toggleWorker={toggleWorker} expandedOpps={expandedOpps} toggleOpp={toggleOpp} expandedTasks={expandedTasks} toggleTask={toggleTask} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {!isRegistrosOnly && screen === 'historial' && <HistorialScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenDetalle={openDetalle} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
-        {screen === 'notificaciones' && <NotificacionesScreen myTasks={myTasksList} myOpportunities={myOpportunities} allTasks={allTasksList} allOpportunities={allOpportunities} allEmployees={activeEmps} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenInTrabajadores={goToTaskInTrabajadores} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} hasRegistrosAccess={hasRegistrosAccess} onOpenInRegistros={(tab) => { setScreen('registros'); setRsTab(tab); }} />}
+        {screen === 'notificaciones' && <NotificacionesScreen myTasks={myTasksList} myOpportunities={myOpportunities} allTasks={allTasksList} allOpportunities={allOpportunities} myFollowups={myFollowupsList} allFollowups={allFollowupsList} allEmployees={activeEmps} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenInTrabajadores={goToTaskInTrabajadores} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} hasRegistrosAccess={hasRegistrosAccess} onOpenInRegistros={(tab) => { setScreen('registros'); setRsTab(tab); }} />}
         {screen === 'registros' && hasRegistrosAccess && <RegistrosSanitariosScreen rsTab={rsTab} setRsTab={setRsTab} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} canEdit={canEditRegistros} onOpenNuevo={openRsNuevo} onOpenEditar={openRsEditar} onOpenEliminar={openRsEliminar} rsAuditLog={rsAuditLog} />}
         {screen === 'registros' && !hasRegistrosAccess && <div className="error-msg">No tienes acceso a esta sección</div>}
         {screen === 'config' && isAdmin && <ConfigScreen employees={employees} categories={categories} onEmployeesUpdated={loadEmployees} onAssignmentsUpdated={loadAssignments} onCategoriesUpdated={loadCategories} />}
