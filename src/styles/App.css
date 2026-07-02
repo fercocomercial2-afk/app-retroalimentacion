@@ -191,13 +191,13 @@ body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; b
 
 /* ==================== MODALS ==================== */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
-.modal-content { background: white; border-radius: 16px; padding: 32px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+.modal-content { background: white; border-radius: 16px; padding: 32px; width: 100%; max-width: 1040px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
 .modal-title { font-size: 20px; font-weight: 800; color: #15362C; margin-bottom: 8px; }
 .modal-subtitle { font-size: 14px; color: #888; margin-bottom: 24px; }
 .modal-actions { display: flex; gap: 12px; margin-top: 20px; }
 .modal-context { background: #f8f9fa; padding: 16px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #2C8B5D; }
 .modal-context-label { font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
-.modal-context-text { font-size: 14px; font-weight: 600; color: #333; margin-bottom: 4px; }
+.modal-context-text { font-size: 14px; font-weight: 600; color: #333; margin-bottom: 4px; white-space: pre-wrap; line-height: 1.6; }
 .modal-context-meta { font-size: 13px; color: #888; }
 
 /* ==================== LOADING ==================== */
