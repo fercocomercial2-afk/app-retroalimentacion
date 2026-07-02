@@ -9,7 +9,11 @@ import './styles/App.css';
 const initials = (name) => name ? name.split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase() : '??';
 const firstName = (name) => name ? name.split(' ')[0] : '';
 const daysBetween = (d1, d2) => { const a = new Date(d1); const b = new Date(d2); a.setHours(0,0,0,0); b.setHours(0,0,0,0); return Math.max(0, Math.round((b - a) / 86400000)); };
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-PE', { day: '2-digit', month: 'short' }) : '—';
+const fmtDate = (d) => {
+  if (!d) return '—';
+  const date = new Date(d + (typeof d === 'string' && d.length === 10 ? 'T00:00:00' : ''));
+  return date.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' });
+};
 const fmtDateRS = (d) => {
   if (!d) return '—';
   const date = new Date(d + (typeof d === 'string' && d.length === 10 ? 'T00:00:00' : ''));
@@ -1846,7 +1850,8 @@ export default function App() {
   };
   const confirmarLogradoTask = async () => {
     if (!fTaskRating) return setFormError('Selecciona una calificación de 1 a 5 estrellas.');
-    await supabase.from('tasks').update({ status: 'logrado', closed_at: new Date().toISOString(), final_observation: fTaskObs.trim() || 'Tarea completada.', rating: fTaskRating, updated_at: new Date().toISOString() }).eq('id', activeTask.id);
+    const { error } = await supabase.from('tasks').update({ status: 'logrado', closed_at: new Date().toISOString(), final_observation: fTaskObs.trim() || 'Tarea completada.', rating: fTaskRating, updated_at: new Date().toISOString() }).eq('id', activeTask.id);
+    if (error) return setFormError('Error al guardar: ' + error.message);
     closeModal(); loadTasks();
   };
   const eliminarTask = async () => {
@@ -2047,7 +2052,7 @@ export default function App() {
             <div className="modal-context-text">{activeTask.title}</div>
             <div className="modal-context-meta">Proyecto: {activeOpp?.title || '—'}</div>
           </div>
-          <div className="form-group"><label>Observación</label>
+          <div className="form-group"><label>Retroalimentación</label>
             <textarea className="form-textarea" placeholder="Describe avances, observaciones..." value={fObs} onChange={e => setFObs(e.target.value)} />
           </div>
           <div className="form-group"><label>Valoración (opcional)</label>
@@ -2076,8 +2081,9 @@ export default function App() {
           <div className="form-group"><label>Observación final (opcional)</label>
             <textarea className="form-textarea" placeholder="Resultados obtenidos..." value={fTaskObs} onChange={e => setFTaskObs(e.target.value)} />
           </div>
-          <div className="form-group"><label>Calificación de la tarea</label>
+          <div className="form-group"><label>Calificación de la tarea <span style={{ color: '#D64545' }}>*</span></label>
             <StarRating value={fTaskRating} onChange={setFTaskRating} />
+            {!fTaskRating && <div style={{ fontSize: 12, color: '#C98A2B', marginTop: 6 }}>⚠️ Debes seleccionar de 1 a 5 estrellas para poder confirmar.</div>}
           </div>
           {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
@@ -2150,7 +2156,7 @@ export default function App() {
       {modal === 'editarFollowup' && editTarget && (
         <Modal onClose={closeModal}>
           <div className="modal-title">Editar seguimiento</div>
-          <div className="form-group"><label>Observación</label>
+          <div className="form-group"><label>Retroalimentación</label>
             <textarea className="form-textarea" value={fObs} onChange={e => setFObs(e.target.value)} />
           </div>
           <div className="form-group"><label>Valoración (opcional)</label>
@@ -2176,7 +2182,7 @@ export default function App() {
             <div className="modal-context-text">{activeOpp.title || activeOpp.description}</div>
             <div className="modal-context-meta">Colaborador: {activeEmp?.name || '—'}</div>
           </div>
-          <div className="form-group"><label>Observación</label>
+          <div className="form-group"><label>Retroalimentación</label>
             <textarea className="form-textarea" placeholder="Describe avances, observaciones..." value={fObs} onChange={e => setFObs(e.target.value)} />
           </div>
           <div className="form-group"><label>Valoración (opcional)</label>
