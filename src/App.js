@@ -28,6 +28,27 @@ const COLORS = ['#1F6FB2', '#2C8B5D', '#8A5BB0', '#C98A2B', '#D64545', '#3A8F8F'
 /* ================================================================
    ESQUEMAS DE REGISTROS SANITARIOS
    ================================================================ */
+async function uploadPdfToDrive(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const base64 = reader.result.split(',')[1];
+        const resp = await fetch('/api/upload-drive', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName: file.name, fileData: base64, mimeType: file.type || 'application/pdf' }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Error al subir archivo');
+        resolve(data.url);
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = () => reject(new Error('Error al leer el archivo'));
+    reader.readAsDataURL(file);
+  });
+}
+
 const RS_SCHEMAS = {
   dm: {
     table: 'rs_dispositivos_medicos', codigo: 'FOR-GT-001', nombre: 'Dispositivos Médicos',
@@ -1199,7 +1220,7 @@ async function generarPdfRegistros(dataMap) {
   doc.save(`Registros_Sanitarios_Ferco_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
-function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDigesa, certDigemid, canEdit, onOpenNuevo, onOpenEditar, onOpenEliminar, rsAuditLog }) {
+function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDigesa, certDigemid, canEdit, onOpenNuevo, onOpenEditar, onOpenEliminar, rsAuditLog, onUploadPdf }) {
   const dataMap = { dm: rsDM, cosm: rsCosm, pf: rsPF, digesa: rsDigesa, cert: certDigemid };
   const schema = RS_SCHEMAS[rsTab];
   const items = dataMap[rsTab] || [];
@@ -1386,10 +1407,21 @@ function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDige
                     </div>
                     <div className="hist-meta">
                       Estado: {estadoBadge(item.estado)} · F. Vencimiento: {fmtDateRS(item.f_vencimiento)}
+                      {item.pdf_url && (
+                        <span> · <a href={item.pdf_url} target="_blank" rel="noopener noreferrer" style={{ color: '#1F6FB2', fontWeight: 600, textDecoration: 'none' }}>📄 Ver PDF</a></span>
+                      )}
                     </div>
-                    <button className="followup-toggle" onClick={() => toggleItem(item.id)}>
-                      {isExpanded ? 'Ver menos' : 'Ver más'}
-                    </button>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+                      <button className="followup-toggle" onClick={() => toggleItem(item.id)}>
+                        {isExpanded ? 'Ver menos' : 'Ver más'}
+                      </button>
+                      {canEdit && (
+                        <label className="followup-toggle" style={{ cursor: 'pointer', color: item.pdf_url ? '#2C8B5D' : '#1F6FB2' }}>
+                          {item.pdf_url ? '📄 Cambiar PDF' : '📎 Subir PDF'}
+                          <input type="file" accept=".pdf" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) onUploadPdf(rsTab, item, e.target.files[0]); e.target.value = ''; }} />
+                        </label>
+                      )}
+                    </div>
                     {isExpanded && (
                       <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #f0f0f0', display: 'grid', gap: 6 }}>
                         {schema.fields.map(f => (
@@ -1914,6 +1946,24 @@ export default function App() {
   const openRsNuevo = (tabKey) => { setRsTab(tabKey); setRsModal('nuevo'); setRsEditItem(null); setRsForm({}); setFormError(''); };
   const openRsEditar = (tabKey, item) => { setRsTab(tabKey); setRsModal('editar'); setRsEditItem(item); setRsForm({ ...item }); setFormError(''); };
   const openRsEliminar = (tabKey, item) => { setRsTab(tabKey); setRsModal('eliminar'); setRsEditItem(item); };
+
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const handleUploadPdf = async (tabKey, item, file) => {
+    if (file.size > 10 * 1024 * 1024) return alert('El archivo es demasiado grande (máx. 10MB).');
+    if (!file.name.toLowerCase().endsWith('.pdf')) return alert('Solo se permiten archivos PDF.');
+    setUploadingPdf(true);
+    try {
+      const url = await uploadPdfToDrive(file);
+      const schema = RS_SCHEMAS[tabKey];
+      await supabase.from(schema.table).update({ pdf_url: url }).eq('id', item.id);
+      await supabase.from('rs_audit_log').insert([{ tabla: schema.table, record_id: item.id, accion: 'EDITAR', campo: 'pdf_url', valor_nuevo: `PDF subido: ${file.name}`, usuario_email: user?.email, usuario_nombre: currentManager?.name || user?.email }]);
+      // Recargar datos
+      const loaders = { dm: loadRsDM, cosm: loadRsCosm, pf: loadRsPF, digesa: loadRsDigesa, cert: loadCertDigemid };
+      if (loaders[tabKey]) loaders[tabKey]();
+      loadRsAuditLog();
+    } catch (err) { alert('Error al subir PDF: ' + err.message); }
+    finally { setUploadingPdf(false); }
+  };
   const closeRsModal = () => { setRsModal(null); setRsEditItem(null); setRsForm({}); setFormError(''); };
 
   const rsLoaders = { dm: loadRsDM, cosm: loadRsCosm, pf: loadRsPF, digesa: loadRsDigesa, cert: loadCertDigemid };
@@ -2147,7 +2197,7 @@ export default function App() {
         {!isRegistrosOnly && screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} tasks={tasks} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenEliminar={openEliminar} onOpenEditarOpp={openEditarOpp} onOpenNuevaTask={openNuevaTask} onOpenSeguimientoTask={openSeguimientoTask} onOpenLograrTask={openLograrTask} onOpenEliminarTask={openEliminarTask} onOpenEditarTask={openEditarTask} onOpenEditarFollowup={openEditarFollowup} selectedWorkerId={selectedWorkerId} setSelectedWorkerId={setSelectedWorkerId} expandedOpps={expandedOpps} toggleOpp={toggleOpp} expandedTasks={expandedTasks} toggleTask={toggleTask} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {!isRegistrosOnly && screen === 'historial' && <HistorialScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenDetalle={openDetalle} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {screen === 'notificaciones' && <NotificacionesScreen myTasks={myTasksList} myOpportunities={myOpportunities} allTasks={allTasksList} allOpportunities={allOpportunities} myFollowups={myFollowupsList} allFollowups={allFollowupsList} allEmployees={activeEmps} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenInTrabajadores={goToTaskInTrabajadores} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} hasRegistrosAccess={hasRegistrosAccess} onOpenInRegistros={(tab) => { setScreen('registros'); setRsTab(tab); }} />}
-        {screen === 'registros' && hasRegistrosAccess && <RegistrosSanitariosScreen rsTab={rsTab} setRsTab={setRsTab} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} canEdit={canEditRegistros} onOpenNuevo={openRsNuevo} onOpenEditar={openRsEditar} onOpenEliminar={openRsEliminar} rsAuditLog={rsAuditLog} />}
+        {screen === 'registros' && hasRegistrosAccess && <RegistrosSanitariosScreen rsTab={rsTab} setRsTab={setRsTab} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} canEdit={canEditRegistros} onOpenNuevo={openRsNuevo} onOpenEditar={openRsEditar} onOpenEliminar={openRsEliminar} rsAuditLog={rsAuditLog} onUploadPdf={handleUploadPdf} />}
         {screen === 'registros' && !hasRegistrosAccess && <div className="error-msg">No tienes acceso a esta sección</div>}
         {screen === 'config' && isAdmin && <ConfigScreen employees={employees} categories={categories} onEmployeesUpdated={loadEmployees} onAssignmentsUpdated={loadAssignments} onCategoriesUpdated={loadCategories} />}
         {screen === 'config' && !isAdmin && <div className="error-msg">No tienes acceso a esta sección</div>}
