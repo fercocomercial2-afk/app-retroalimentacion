@@ -29,24 +29,55 @@ const COLORS = ['#1F6FB2', '#2C8B5D', '#8A5BB0', '#C98A2B', '#D64545', '#3A8F8F'
    ESQUEMAS DE REGISTROS SANITARIOS
    ================================================================ */
 async function uploadPdfToDrive(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const base64 = reader.result.split(',')[1];
-        const resp = await fetch('/api/upload-drive', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileName: file.name, fileData: base64, mimeType: file.type || 'application/pdf' }),
-        });
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || 'Error al subir archivo');
-        resolve(data.url);
-      } catch (err) { reject(err); }
-    };
-    reader.onerror = () => reject(new Error('Error al leer el archivo'));
-    reader.readAsDataURL(file);
+  // 1. Pedir token a Vercel (solo datos de auth, no el archivo)
+  const tokenResp = await fetch('/api/upload-drive');
+  if (!tokenResp.ok) throw new Error('No se pudo obtener autorización de Google Drive');
+  const { token, folderId } = await tokenResp.json();
+
+  // 2. Iniciar resumable upload directo desde el navegador a Google Drive
+  const metadata = { name: file.name, parents: [folderId] };
+  const initResp = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,webViewLink',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': file.type || 'application/pdf',
+        'X-Upload-Content-Length': file.size,
+      },
+      body: JSON.stringify(metadata),
+    }
+  );
+  if (!initResp.ok) throw new Error('Error al iniciar la subida a Google Drive');
+  const uploadUrl = initResp.headers.get('Location');
+
+  // 3. Subir el archivo directo (sin límite de tamaño, va del navegador a Drive)
+  const uploadResp = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type || 'application/pdf' },
+    body: file,
   });
+  if (!uploadResp.ok) throw new Error('Error al subir el archivo a Google Drive');
+  const fileData = await uploadResp.json();
+
+  // 4. Hacer el archivo público (link compartido)
+  await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+  });
+
+  // 5. Obtener el link final
+  const fileResp = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileData.id}?fields=webViewLink`,
+    { headers: { 'Authorization': `Bearer ${token}` } }
+  );
+  const finalFile = await fileResp.json();
+  return finalFile.webViewLink;
 }
 
 const RS_SCHEMAS = {
@@ -1949,7 +1980,6 @@ export default function App() {
 
   const [uploadingPdf, setUploadingPdf] = useState(null); // null | tabKey siendo subido
   const handleUploadPdf = async (tabKey, item, file) => {
-    if (file.size > 10 * 1024 * 1024) return alert('El archivo es demasiado grande (máx. 10MB).');
     if (!file.name.toLowerCase().endsWith('.pdf')) return alert('Solo se permiten archivos PDF.');
     setUploadingPdf(item.id);
     try {
