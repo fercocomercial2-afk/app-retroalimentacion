@@ -1205,6 +1205,9 @@ function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDige
   const items = dataMap[rsTab] || [];
   const [expandedItems, setExpandedItems] = useState({});
   const toggleItem = (id) => setExpandedItems(s => ({ ...s, [id]: !s[id] }));
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [consolFilter, setConsolFilter] = useState('all');
 
   const tabs = [
     { key: 'dm', label: 'Dispositivos Médicos' },
@@ -1212,8 +1215,132 @@ function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDige
     { key: 'pf', label: 'Farmacéutico' },
     { key: 'digesa', label: 'DIGESA' },
     { key: 'cert', label: 'Certificaciones' },
+    { key: 'consolidado', label: '📋 Consolidado' },
   ];
 
+  const estadoBadge = (estado) => {
+    const isVigente = estado === 'VIGENTE';
+    const color = isVigente ? '#2C8B5D' : '#C98A2B';
+    const bg = isVigente ? '#e6f5ec' : '#fff3e0';
+    return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, background: bg, color }}>
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />{estado || '—'}
+    </span>;
+  };
+
+  /* ---------- CONSOLIDADO ---------- */
+  if (rsTab === 'consolidado') {
+    const allItems = [
+      ...rsDM.map(i => ({ ...i, _tab: 'dm' })),
+      ...rsCosm.map(i => ({ ...i, _tab: 'cosm' })),
+      ...rsPF.map(i => ({ ...i, _tab: 'pf' })),
+      ...rsDigesa.map(i => ({ ...i, _tab: 'digesa' })),
+      ...certDigemid.map(i => ({ ...i, _tab: 'cert' })),
+    ];
+
+    let filtered = consolFilter === 'all' ? allItems : allItems.filter(i => i._tab === consolFilter);
+
+    if (dateFrom) filtered = filtered.filter(i => i.f_vencimiento && i.f_vencimiento >= dateFrom);
+    if (dateTo) filtered = filtered.filter(i => i.f_vencimiento && i.f_vencimiento <= dateTo);
+
+    filtered.sort((a, b) => (a.f_vencimiento || '').localeCompare(b.f_vencimiento || ''));
+
+    const countByEstado = { vigente: filtered.filter(i => i.estado === 'VIGENTE').length, tramite: filtered.filter(i => i.estado === 'EN TRÁMITE').length, solicitud: filtered.filter(i => i.estado === 'PARA SOLICITUD').length, otro: filtered.filter(i => !i.estado || !['VIGENTE', 'EN TRÁMITE', 'PARA SOLICITUD'].includes(i.estado)).length };
+
+    return (
+      <div>
+        <div className="page-header">
+          <h1 className="page-title">Registros</h1>
+          <p className="page-subtitle">Consolidado de todas las certificaciones</p>
+        </div>
+
+        <div className="tabs" style={{ marginBottom: 16, flexWrap: 'wrap' }}>
+          {tabs.map(t => (
+            <button key={t.key} className={`tab ${rsTab === t.key ? 'active' : ''}`} onClick={() => setRsTab(t.key)}>{t.label}</button>
+          ))}
+        </div>
+
+        {/* Filtros */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select className="form-select" style={{ width: 'auto', padding: '6px 12px', fontSize: 13 }} value={consolFilter} onChange={e => setConsolFilter(e.target.value)}>
+            <option value="all">Todas las categorías</option>
+            <option value="dm">Dispositivos Médicos</option>
+            <option value="cosm">Cosméticos</option>
+            <option value="pf">Farmacéutico</option>
+            <option value="digesa">DIGESA</option>
+            <option value="cert">Certificaciones</option>
+          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+            <span style={{ color: '#888' }}>Desde:</span>
+            <input type="date" className="form-input" style={{ padding: '6px 10px', fontSize: 13, width: 'auto' }} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+            <span style={{ color: '#888' }}>Hasta:</span>
+            <input type="date" className="form-input" style={{ padding: '6px 10px', fontSize: 13, width: 'auto' }} value={dateTo} onChange={e => setDateTo(e.target.value)} />
+          </div>
+          {(dateFrom || dateTo || consolFilter !== 'all') && (
+            <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }} onClick={() => { setDateFrom(''); setDateTo(''); setConsolFilter('all'); }}>Limpiar filtros</button>
+          )}
+        </div>
+
+        {/* KPIs resumen */}
+        <div className="dash-kpi-main" style={{ marginBottom: 20 }}>
+          <div className="stat-card" style={{ flex: 1 }}>
+            <div className="stat-card-label">Total</div>
+            <div className="stat-card-value" style={{ color: '#15362C' }}>{filtered.length}</div>
+          </div>
+          <div className="stat-card" style={{ flex: 1 }}>
+            <div className="stat-card-label">Vigentes</div>
+            <div className="stat-card-value green">{countByEstado.vigente}</div>
+          </div>
+          <div className="stat-card" style={{ flex: 1 }}>
+            <div className="stat-card-label">En trámite</div>
+            <div className="stat-card-value gold">{countByEstado.tramite}</div>
+          </div>
+          <div className="stat-card" style={{ flex: 1 }}>
+            <div className="stat-card-label">Para solicitud</div>
+            <div className="stat-card-value gold">{countByEstado.solicitud}</div>
+          </div>
+        </div>
+
+        {/* Tabla consolidada */}
+        {filtered.length === 0 ? (
+          <div className="empty-state">No hay registros que coincidan con los filtros seleccionados.</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, background: 'white', borderRadius: 12, overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+              <thead>
+                <tr style={{ background: '#f8f9fa', textAlign: 'left' }}>
+                  <th style={{ padding: '12px 14px', fontWeight: 700, color: '#555', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Categoría</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700, color: '#555', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Nombre / Producto</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700, color: '#555', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Código</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700, color: '#555', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Estado</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700, color: '#555', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>F. Vencimiento</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700, color: '#555', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Alerta</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((item, idx) => {
+                  const s = RS_SCHEMAS[item._tab];
+                  return (
+                    <tr key={item._tab + item.id} style={{ borderTop: '1px solid #f0f0f0', background: idx % 2 === 0 ? 'white' : '#fafafa', cursor: 'pointer' }} onClick={() => setRsTab(item._tab)}>
+                      <td style={{ padding: '10px 14px', color: '#888', fontSize: 12 }}>{s.nombre}</td>
+                      <td style={{ padding: '10px 14px', fontWeight: 600, color: '#15362C' }}>{item[s.titleField]}</td>
+                      <td style={{ padding: '10px 14px', color: '#555' }}>{item[s.codeField] || '—'}</td>
+                      <td style={{ padding: '10px 14px' }}>{estadoBadge(item.estado)}</td>
+                      <td style={{ padding: '10px 14px', color: '#555' }}>{fmtDateRS(item.f_vencimiento)}</td>
+                      <td style={{ padding: '10px 14px' }}><RsAlertBadge fVencimiento={item.f_vencimiento} /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* ---------- PESTAÑAS INDIVIDUALES ---------- */
   return (
     <div>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -1258,11 +1385,7 @@ function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDige
                       <RsAlertBadge fVencimiento={item.f_vencimiento} />
                     </div>
                     <div className="hist-meta">
-                      Estado: <span style={{ 
-                        display: 'inline-block', padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700,
-                        background: item.estado === 'VIGENTE' ? '#e6f5ec' : '#fff3e0',
-                        color: item.estado === 'VIGENTE' ? '#2C8B5D' : '#C98A2B'
-                      }}>{item.estado || '—'}</span> · F. Vencimiento: {fmtDateRS(item.f_vencimiento)}
+                      Estado: {estadoBadge(item.estado)} · F. Vencimiento: {fmtDateRS(item.f_vencimiento)}
                     </div>
                     <button className="followup-toggle" onClick={() => toggleItem(item.id)}>
                       {isExpanded ? 'Ver menos' : 'Ver más'}
@@ -1273,7 +1396,7 @@ function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDige
                           <div key={f.key} style={{ fontSize: 13, color: '#555' }}>
                             <strong style={{ color: '#333' }}>{f.label}:</strong>{' '}
                             <span style={{ whiteSpace: 'pre-wrap' }}>
-                              {f.type === 'date' ? fmtDateRS(item[f.key]) : (item[f.key] || '—')}
+                              {f.key === 'estado' ? estadoBadge(item[f.key]) : f.type === 'date' ? fmtDateRS(item[f.key]) : (item[f.key] || '—')}
                             </span>
                           </div>
                         ))}
