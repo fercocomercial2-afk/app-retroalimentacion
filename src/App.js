@@ -11,8 +11,19 @@ const firstName = (name) => name ? name.split(' ')[0] : '';
 const daysBetween = (d1, d2) => { const a = new Date(d1); const b = new Date(d2); a.setHours(0,0,0,0); b.setHours(0,0,0,0); return Math.max(0, Math.round((b - a) / 86400000)); };
 const fmtDate = (d) => {
   if (!d) return '—';
-  const date = new Date(d + (typeof d === 'string' && d.length === 10 ? 'T00:00:00' : ''));
-  return date.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' });
+  const date = new Date(typeof d === 'string' && d.length === 10 ? d + 'T00:00:00' : d);
+  const base = date.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' });
+  // Mostrar hora solo si no es medianoche exacta
+  const h = date.getHours(), m = date.getMinutes();
+  if (h !== 0 || m !== 0) return `${base} ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  return base;
+};
+// Convierte un valor ISO a formato datetime-local (YYYY-MM-DDTHH:mm)
+const toDatetimeLocal = (d) => {
+  if (!d) return '';
+  const date = new Date(typeof d === 'string' && d.length === 10 ? d + 'T00:00:00' : d);
+  const pad = n => String(n).padStart(2,'0');
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 const fmtDateRS = (d) => {
   if (!d) return '—';
@@ -674,10 +685,29 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                         const today0 = new Date(); today0.setHours(0, 0, 0, 0);
                         const hasAlert = isProyecto && oppTasks.some(t => {
                           if (t.status !== 'pendiente' || !t.due_date) return false;
-                          const due = new Date(t.due_date + 'T00:00:00');
+                          const due = new Date(typeof t.due_date === 'string' && t.due_date.length === 10 ? t.due_date + 'T00:00:00' : t.due_date);
                           return due <= today0;
                         });
                         const progressPct = oppProgress(opp, isProyecto, oppTasks, oppFollowups);
+
+                        // Fecha más próxima: si es proyecto, la tarea pendiente con due_date más próxima; si no, la propia due_date
+                        const proximaDue = (() => {
+                          if (isProyecto && oppTasks.length > 0) {
+                            const pendientes = oppTasks.filter(t => t.status === 'pendiente' && t.due_date);
+                            if (pendientes.length === 0) return opp.due_date || null;
+                            pendientes.sort((a,b) => new Date(a.due_date) - new Date(b.due_date));
+                            return pendientes[0].due_date;
+                          }
+                          return opp.due_date || null;
+                        })();
+                        const proximaDueColor = (() => {
+                          if (!proximaDue) return null;
+                          const due = new Date(typeof proximaDue === 'string' && proximaDue.length === 10 ? proximaDue + 'T00:00:00' : proximaDue);
+                          const diffDays = Math.round((due - today0) / 86400000);
+                          if (diffDays < 0) return '#D64545'; // vencida
+                          if (diffDays <= 3) return '#C98A2B'; // próxima (≤3 días)
+                          return '#2C8B5D'; // ok
+                        })();
 
                 return (
                   <div key={opp.id} className="opp-card">
@@ -687,6 +717,11 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                         <span className="opp-name-line">
                           {opp.title || opp.description}
                           {hasAlert && <span className="task-alert" title="Hay tareas vencidas o que vencen hoy"> ⚠️</span>}
+                          {proximaDue && proximaDueColor && (
+                            <span style={{ marginLeft:6, fontSize:11, fontWeight:700, color:proximaDueColor, background:proximaDueColor+'18', padding:'2px 7px', borderRadius:8, whiteSpace:'nowrap' }}>
+                              📅 {fmtDate(proximaDue)}
+                            </span>
+                          )}
                         </span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -750,7 +785,7 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                               const isTaskExpanded = expandedTasks[task.id];
                               const isPendiente = task.status === 'pendiente';
                               const today = new Date(); today.setHours(0, 0, 0, 0);
-                              const due = task.due_date ? new Date(task.due_date + 'T00:00:00') : null;
+                              const due = task.due_date ? new Date(typeof task.due_date === 'string' && task.due_date.length === 10 ? task.due_date + 'T00:00:00' : task.due_date) : null;
                               const isVencida = isPendiente && due && due < today;
                               const isHoy = isPendiente && due && due.getTime() === today.getTime();
 
@@ -906,7 +941,7 @@ function getNotifications(tasks, opportunities, followups, allEmployees) {
   const jefeOf = (emp) => emp ? allEmployees.find(e => e.buk_employee_id === emp.manager_id) : null;
 
   tasks.filter(t => t.status === 'pendiente' && t.due_date).forEach(t => {
-    const due = new Date(t.due_date + 'T00:00:00');
+    const due = new Date(typeof t.due_date === 'string' && t.due_date.length === 10 ? t.due_date + 'T00:00:00' : t.due_date);
     const opp = opportunities.find(o => o.id === t.opportunity_id);
     if (!opp) return;
     const emp = allEmployees.find(e => e.id === opp.employee_id);
@@ -917,7 +952,7 @@ function getNotifications(tasks, opportunities, followups, allEmployees) {
   });
 
   opportunities.filter(o => o.status === 'proceso' && o.due_date).forEach(o => {
-    const due = new Date(o.due_date + 'T00:00:00');
+    const due = new Date(typeof o.due_date === 'string' && o.due_date.length === 10 ? o.due_date + 'T00:00:00' : o.due_date);
     const emp = allEmployees.find(e => e.id === o.employee_id);
     const diffDays = Math.round((due - today) / 86400000);
     if (diffDays <= 0) {
@@ -926,7 +961,7 @@ function getNotifications(tasks, opportunities, followups, allEmployees) {
   });
 
   followups.filter(f => f.due_date).forEach(f => {
-    const due = new Date(f.due_date + 'T00:00:00');
+    const due = new Date(typeof f.due_date === 'string' && f.due_date.length === 10 ? f.due_date + 'T00:00:00' : f.due_date);
     const diffDays = Math.round((due - today) / 86400000);
     if (diffDays > 0) return;
     let opp = null, task = null;
@@ -1071,7 +1106,7 @@ function NotificacionesScreen({ myTasks, myOpportunities, allTasks, allOpportuni
 function diasHasta(fecha) {
   if (!fecha) return null;
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const f = new Date(fecha + 'T00:00:00');
+  const f = new Date(typeof fecha === 'string' && fecha.length === 10 ? fecha + 'T00:00:00' : fecha);
   return Math.round((f - today) / 86400000);
 }
 
@@ -2530,9 +2565,9 @@ export default function App() {
   const openEliminar = (opp) => { setModal('eliminar'); setActiveOpp(opp); setActiveTask(null); };
   const openEliminarTask = (opp, task) => { setModal('eliminarTask'); setActiveOpp(opp); setActiveTask(task); };
   const openNuevaTask = (opp) => { setModal('nuevaTask'); setActiveOpp(opp); setFTaskTitle(''); setFTaskDue(''); setFormError(''); };
-  const openEditarOpp = (opp) => { setModal('editarOpp'); setEditTarget({ type: 'opp', item: opp }); setFEditTitle(opp.title || opp.description || ''); setFEditCategory(opp.category_id || ''); setFEditDue(opp.due_date || ''); setFormError(''); };
-  const openEditarTask = (opp, task) => { setModal('editarTask'); setActiveOpp(opp); setEditTarget({ type: 'task', item: task }); setFEditTitle(task.title); setFEditDue(task.due_date || ''); setFormError(''); };
-  const openEditarFollowup = (fu) => { setModal('editarFollowup'); setEditTarget({ type: 'followup', item: fu }); setFObs(fu.observation); setFObsRating(fu.rating || 0); setFObsDue(fu.due_date || ''); setFormError(''); };
+  const openEditarOpp = (opp) => { setModal('editarOpp'); setEditTarget({ type: 'opp', item: opp }); setFEditTitle(opp.title || opp.description || ''); setFEditCategory(opp.category_id || ''); setFEditDue(toDatetimeLocal(opp.due_date)); setFormError(''); };
+  const openEditarTask = (opp, task) => { setModal('editarTask'); setActiveOpp(opp); setEditTarget({ type: 'task', item: task }); setFEditTitle(task.title); setFEditDue(toDatetimeLocal(task.due_date)); setFormError(''); };
+  const openEditarFollowup = (fu) => { setModal('editarFollowup'); setEditTarget({ type: 'followup', item: fu }); setFObs(fu.observation); setFObsRating(fu.rating || 0); setFObsDue(toDatetimeLocal(fu.due_date)); setFormError(''); };
 
   const openRsNuevo = (tabKey) => { setRsTab(tabKey); setRsModal('nuevo'); setRsEditItem(null); setRsForm({}); setFormError(''); };
   const openRsEditar = (tabKey, item) => { setRsTab(tabKey); setRsModal('editar'); setRsEditItem(item); setRsForm({ ...item }); setFormError(''); };
@@ -2929,7 +2964,7 @@ export default function App() {
             <input className="form-input" placeholder={categories.find(c => c.id === fCategory)?.name === 'Proyectos' ? 'Ej: Rediseño del catálogo de productos' : 'Ej: Mejorar puntualidad en reuniones'} value={fTitle} onChange={e => setFTitle(e.target.value)} />
           </div>
           <div className="form-group"><label>Fecha límite (opcional)</label>
-            <input type="date" className="form-input" value={fDue} onChange={e => setFDue(e.target.value)} />
+            <input type="datetime-local" className="form-input" value={fDue} onChange={e => setFDue(e.target.value)} />
           </div>
           {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
@@ -2951,7 +2986,7 @@ export default function App() {
             <textarea className="form-textarea" placeholder="Ej: Subir fotos de productos" value={fTaskTitle} onChange={e => setFTaskTitle(e.target.value)} style={{ minHeight: 70 }} />
           </div>
           <div className="form-group"><label>Fecha límite (opcional)</label>
-            <input type="date" className="form-input" value={fTaskDue} onChange={e => setFTaskDue(e.target.value)} />
+            <input type="datetime-local" className="form-input" value={fTaskDue} onChange={e => setFTaskDue(e.target.value)} />
           </div>
           {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
@@ -2977,7 +3012,7 @@ export default function App() {
             <RatingPicker value={fObsRating} onChange={setFObsRating} />
           </div>
           <div className="form-group"><label>Fecha límite (opcional)</label>
-            <input type="date" className="form-input" value={fObsDue} onChange={e => setFObsDue(e.target.value)} />
+            <input type="datetime-local" className="form-input" value={fObsDue} onChange={e => setFObsDue(e.target.value)} />
           </div>
           {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
@@ -3042,7 +3077,7 @@ export default function App() {
             <input className="form-input" value={fEditTitle} onChange={e => setFEditTitle(e.target.value)} />
           </div>
           <div className="form-group"><label>Fecha límite (opcional)</label>
-            <input type="date" className="form-input" value={fEditDue} onChange={e => setFEditDue(e.target.value)} />
+            <input type="datetime-local" className="form-input" value={fEditDue} onChange={e => setFEditDue(e.target.value)} />
           </div>
           {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
@@ -3060,7 +3095,7 @@ export default function App() {
             <textarea className="form-textarea" value={fEditTitle} onChange={e => setFEditTitle(e.target.value)} style={{ minHeight: 70 }} />
           </div>
           <div className="form-group"><label>Fecha límite (opcional)</label>
-            <input type="date" className="form-input" value={fEditDue} onChange={e => setFEditDue(e.target.value)} />
+            <input type="datetime-local" className="form-input" value={fEditDue} onChange={e => setFEditDue(e.target.value)} />
           </div>
           {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
@@ -3081,7 +3116,7 @@ export default function App() {
             <RatingPicker value={fObsRating} onChange={setFObsRating} />
           </div>
           <div className="form-group"><label>Fecha límite (opcional)</label>
-            <input type="date" className="form-input" value={fObsDue} onChange={e => setFObsDue(e.target.value)} />
+            <input type="datetime-local" className="form-input" value={fObsDue} onChange={e => setFObsDue(e.target.value)} />
           </div>
           {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
@@ -3107,7 +3142,7 @@ export default function App() {
             <RatingPicker value={fObsRating} onChange={setFObsRating} />
           </div>
           <div className="form-group"><label>Fecha límite (opcional)</label>
-            <input type="date" className="form-input" value={fObsDue} onChange={e => setFObsDue(e.target.value)} />
+            <input type="datetime-local" className="form-input" value={fObsDue} onChange={e => setFObsDue(e.target.value)} />
           </div>
           {formError && <div className="error-msg">{formError}</div>}
           <div className="modal-actions">
