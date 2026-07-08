@@ -29,24 +29,25 @@ const COLORS = ['#1F6FB2', '#2C8B5D', '#8A5BB0', '#C98A2B', '#D64545', '#3A8F8F'
    ESQUEMAS DE REGISTROS SANITARIOS
    ================================================================ */
 async function uploadPdfToR2(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const base64 = reader.result.split(',')[1];
-        const resp = await fetch('/api/upload-drive', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileName: file.name, fileData: base64, mimeType: file.type || 'application/pdf' }),
-        });
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || 'Error al subir archivo');
-        resolve(data.url);
-      } catch (err) { reject(err); }
-    };
-    reader.onerror = () => reject(new Error('Error al leer el archivo'));
-    reader.readAsDataURL(file);
+  // 1. Pedir presigned URL a Vercel (solo metadatos, sin el archivo)
+  const resp = await fetch('/api/upload-drive', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileName: file.name, mimeType: file.type || 'application/pdf', fileSize: file.size }),
   });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || 'Error al obtener URL de subida');
+
+  // 2. Subir el archivo DIRECTO a R2 desde el navegador (sin pasar por Vercel)
+  const uploadResp = await fetch(data.presignedUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type || 'application/pdf' },
+    body: file,
+  });
+  if (!uploadResp.ok) throw new Error('Error al subir el archivo a Cloudflare R2');
+
+  // 3. Devolver la URL pública
+  return data.publicUrl;
 }
 
 const RS_SCHEMAS = {

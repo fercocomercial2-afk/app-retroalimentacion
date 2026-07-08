@@ -1,12 +1,5 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '150mb',
-    },
-  },
-};
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -16,8 +9,8 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { fileName, fileData, mimeType } = req.body;
-    if (!fileName || !fileData) return res.status(400).json({ error: 'fileName and fileData are required' });
+    const { fileName, mimeType, fileSize } = req.body;
+    if (!fileName) return res.status(400).json({ error: 'fileName is required' });
 
     const s3 = new S3Client({
       region: 'auto',
@@ -28,22 +21,23 @@ export default async function handler(req, res) {
       },
     });
 
-    const buffer = Buffer.from(fileData, 'base64');
     const key = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
-    await s3.send(new PutObjectCommand({
+    // Generar URL pre-firmada para que el navegador suba directo a R2
+    const command = new PutObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME,
       Key: key,
-      Body: buffer,
       ContentType: mimeType || 'application/pdf',
-    }));
+    });
 
-    // URL pública del archivo
-    const publicUrl = `${process.env.R2_ENDPOINT}/${process.env.R2_BUCKET_NAME}/${key}`;
+    const presignedUrl = await getSignedUrl(s3, command, { expiresIn: 300 }); // 5 min
 
-    return res.status(200).json({ success: true, url: publicUrl });
+    // URL pública final del archivo
+    const publicUrl = `${process.env.R2_PUBLIC_URL}/${key}`;
+
+    return res.status(200).json({ presignedUrl, publicUrl, key });
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('Presign error:', error);
     return res.status(500).json({ error: error.message });
   }
 }
