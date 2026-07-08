@@ -1928,19 +1928,25 @@ function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, is
   }
 
   /* ---------- VISTA USUARIO NORMAL ---------- */
+  const [tabUser, setTabUser] = useState('solicitudes');
   const misAutos = automatizaciones.filter(a => a.solicitante_email === user?.email);
-  const todasAutos = adminView === 'all' ? automatizaciones : misAutos;
 
-  let filtered = todasAutos;
-  if (filtroArea !== 'all') filtered = filtered.filter(a => a.area === filtroArea);
-  if (filtroPrioridad !== 'all') filtered = filtered.filter(a => a.prioridad === filtroPrioridad);
+  const userTabs = [
+    { key: 'solicitudes', label: 'Solicitudes', estados: ['pendiente','en_revision','aprobada'] },
+    { key: 'seguimientos', label: 'Seguimientos', estados: ['en_desarrollo','pausada'] },
+    { key: 'finalizadas', label: 'Finalizadas', estados: ['finalizada'] },
+    { key: 'rechazadas', label: 'Rechazadas', estados: ['rechazada'] },
+  ];
+
+  const currentTab = userTabs.find(t => t.key === tabUser);
+  const userFiltered = misAutos.filter(a => currentTab?.estados.includes(a.estado));
 
   return (
     <div>
       <div className="page-header" style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
         <div>
           <h1 className="page-title">Automatizaciones</h1>
-          <p className="page-subtitle">Solicitudes de mejora y automatización de procesos</p>
+          <p className="page-subtitle">Mis solicitudes de mejora y automatización</p>
         </div>
         <button className="btn-nueva" onClick={onOpenNueva}>
           <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><line x1="9" y1="4" x2="9" y2="14"/><line x1="4" y1="9" x2="14" y2="9"/></svg>
@@ -1948,26 +1954,27 @@ function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, is
         </button>
       </div>
 
-      <AdminViewToggle view={adminView} setView={setAdminView} isAdmin={isAdmin} />
-
-      <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap', alignItems:'center' }}>
-        <select className="form-select" style={{ width:'auto', padding:'6px 12px', fontSize:13 }} value={filtroArea} onChange={e => setFiltroArea(e.target.value)}>
-          <option value="all">Todas las áreas</option>
-          {AUTO_AREAS.map(a => <option key={a} value={a}>{a}</option>)}
-        </select>
-        <select className="form-select" style={{ width:'auto', padding:'6px 12px', fontSize:13 }} value={filtroPrioridad} onChange={e => setFiltroPrioridad(e.target.value)}>
-          <option value="all">Todas las prioridades</option>
-          {Object.entries(AUTO_PRIORIDADES).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
+      <div className="tabs" style={{ marginBottom:16 }}>
+        {userTabs.map(t => {
+          const count = misAutos.filter(a => t.estados.includes(a.estado)).length;
+          return (
+            <button key={t.key} className={`tab ${tabUser === t.key ? 'active' : ''}`} onClick={() => setTabUser(t.key)}>
+              {t.label} {count > 0 && <span style={{ marginLeft:4, background: tabUser === t.key ? 'rgba(255,255,255,0.3)' : '#e0e0e0', borderRadius:10, padding:'1px 7px', fontSize:11, fontWeight:700 }}>{count}</span>}
+            </button>
+          );
+        })}
       </div>
 
-      <div style={{ fontSize:13, color:'#888', marginBottom:16 }}>{filtered.length} solicitud{filtered.length !== 1 ? 'es' : ''}</div>
-
-      {filtered.length === 0 ? (
-        <div className="empty-state">No tienes solicitudes aún. ¡Crea una nueva!</div>
+      {userFiltered.length === 0 ? (
+        <div className="empty-state">
+          {tabUser === 'solicitudes' ? 'No tienes solicitudes activas. ¡Crea una nueva!' :
+           tabUser === 'seguimientos' ? 'No tienes automatizaciones en desarrollo.' :
+           tabUser === 'finalizadas' ? 'No tienes automatizaciones finalizadas aún.' :
+           '✅ No tienes solicitudes rechazadas.'}
+        </div>
       ) : (
         <div className="hist-list">
-          {filtered.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).map(auto => renderCard(auto))}
+          {userFiltered.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).map(auto => renderCard(auto))}
         </div>
       )}
     </div>
@@ -1994,10 +2001,9 @@ function ModalAutomatizacion({ modal, onClose, auto, empleados, segAuto, user, i
 
   if (!modal) return null;
 
-  const darwinReports = empleados.filter(e => {
-    const darwin = empleados.find(emp => emp.email === DARWIN_EMAIL);
-    return darwin && e.manager_id === darwin.buk_employee_id;
-  });
+  const darwinEmployee = empleados.find(emp => emp.email === DARWIN_EMAIL);
+  const darwinReports = empleados.filter(e => darwinEmployee && e.manager_id === darwinEmployee.buk_employee_id);
+  const asignables = darwinEmployee ? [darwinEmployee, ...darwinReports] : darwinReports;
 
   /* ---- VER DETALLE ---- */
   if (modal === 'ver') {
@@ -2143,7 +2149,7 @@ function ModalAutomatizacion({ modal, onClose, auto, empleados, segAuto, user, i
             <div className="form-group"><label className="form-label">Asignar a</label>
               <select className="form-select" value={form.asignado_id||''} onChange={e => f('asignado_id', e.target.value)}>
                 <option value="">Sin asignar</option>
-                {darwinReports.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                {asignables.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
               </select>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
