@@ -1810,6 +1810,7 @@ function StarRatingAuto({ value, onChange }) {
 
 function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, isDarwin, onOpenNueva, onOpenVer, onOpenEditar, onAprobar, onRechazar, onFinalizar, onCalificar, adminView, setAdminView, isAdmin }) {
   const [tabDarwin, setTabDarwin] = useState('solicitudes');
+  const [tabUser, setTabUser] = useState('solicitudes');
   const [filtroArea, setFiltroArea] = useState('all');
   const [filtroPrioridad, setFiltroPrioridad] = useState('all');
 
@@ -1928,7 +1929,6 @@ function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, is
   }
 
   /* ---------- VISTA USUARIO NORMAL ---------- */
-  const [tabUser, setTabUser] = useState('solicitudes');
   const misAutos = automatizaciones.filter(a => a.solicitante_email === user?.email);
 
   const userTabs = [
