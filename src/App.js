@@ -1809,20 +1809,131 @@ function StarRatingAuto({ value, onChange }) {
 }
 
 function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, isDarwin, onOpenNueva, onOpenVer, onOpenEditar, onAprobar, onRechazar, onFinalizar, onCalificar, adminView, setAdminView, isAdmin }) {
-  const [filtroEstado, setFiltroEstado] = useState('all');
+  const [tabDarwin, setTabDarwin] = useState('solicitudes');
   const [filtroArea, setFiltroArea] = useState('all');
   const [filtroPrioridad, setFiltroPrioridad] = useState('all');
 
-  const misAutos = automatizaciones.filter(a => a.solicitante_email === user?.email);
-  const todasAutos = automatizaciones;
-  const autos = adminView === 'all' ? todasAutos : misAutos;
+  const renderCard = (auto, opts = {}) => {
+    const asignado = empleados.find(e => e.id === auto.asignado_id);
+    const esMio = auto.solicitante_email === user?.email;
+    const puedeCalificar = esMio && auto.estado === 'finalizada' && !auto.calificacion;
+    return (
+      <div key={auto.id} className="hist-card" style={{ cursor:'pointer', borderLeft:`4px solid ${AUTO_ESTADOS[auto.estado]?.color || '#ddd'}` }} onClick={() => onOpenVer(auto)}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10 }}>
+          <div style={{ flex:1 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:6 }}>
+              <span className="hist-desc" style={{ margin:0 }}>{auto.titulo}</span>
+              {!opts.hideEstado && <EstadoBadgeAuto estado={auto.estado} />}
+              <PrioridadBadge prioridad={auto.prioridad} />
+            </div>
+            <div className="hist-meta">
+              {auto.area && <span>{auto.area} · </span>}
+              Solicitado por {auto.solicitante_nombre} · {fmtDate(auto.created_at)}
+              {asignado && <span> · Asignado: {firstName(asignado.name)}</span>}
+              {auto.fecha_fin && <span> · Entrega: {fmtDate(auto.fecha_fin)}</span>}
+            </div>
+            {/* Calificación en finalizadas */}
+            {auto.estado === 'finalizada' && (
+              <div style={{ marginTop:6 }}>
+                {auto.calificacion ? (
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <span style={{ fontSize:16 }}>{'★'.repeat(auto.calificacion)}{'☆'.repeat(5-auto.calificacion)}</span>
+                    {auto.comentario_calificacion && <span style={{ fontSize:12, color:'#666', fontStyle:'italic' }}>"{auto.comentario_calificacion}"</span>}
+                  </div>
+                ) : (
+                  <span style={{ fontSize:12, color:'#C98A2B', fontWeight:600 }}>⏳ Pendiente de calificación</span>
+                )}
+              </div>
+            )}
+            {/* Motivo rechazo */}
+            {auto.estado === 'rechazada' && auto.motivo_rechazo && (
+              <div style={{ marginTop:6, fontSize:12, color:'#D64545' }}>🚫 {auto.motivo_rechazo}</div>
+            )}
+            {puedeCalificar && (
+              <button className="btn-seg" style={{ marginTop:8, fontSize:12 }} onClick={e => { e.stopPropagation(); onCalificar(auto); }}>⭐ Calificar automatización</button>
+            )}
+          </div>
+          {/* Acciones Darwin */}
+          {isDarwin && (auto.estado === 'pendiente' || auto.estado === 'en_revision') && (
+            <div style={{ display:'flex', gap:6, flexShrink:0 }} onClick={e => e.stopPropagation()}>
+              <button className="btn-lograr" style={{ fontSize:12 }} onClick={() => onAprobar(auto)}>✓ Aprobar</button>
+              <button className="btn-eliminar" style={{ fontSize:12, padding:'6px 10px' }} onClick={() => onRechazar(auto)}>✗ Rechazar</button>
+            </div>
+          )}
+          {isDarwin && (auto.estado === 'en_desarrollo' || auto.estado === 'aprobada') && (
+            <button style={{ fontSize:12, padding:'6px 12px', background:'#15362C', color:'white', border:'none', borderRadius:6, cursor:'pointer', flexShrink:0 }} onClick={e => { e.stopPropagation(); onFinalizar(auto); }}>✓ Finalizar</button>
+          )}
+        </div>
+      </div>
+    );
+  };
 
-  let filtered = autos;
-  if (filtroEstado !== 'all') filtered = filtered.filter(a => a.estado === filtroEstado);
+  /* ---------- VISTA DARWIN ---------- */
+  if (isDarwin) {
+    const solicitudes = automatizaciones.filter(a => ['pendiente','en_revision'].includes(a.estado));
+    const seguimientos = automatizaciones.filter(a => ['aprobada','en_desarrollo','pausada'].includes(a.estado));
+    const finalizadas = automatizaciones.filter(a => a.estado === 'finalizada');
+    const rechazadas = automatizaciones.filter(a => a.estado === 'rechazada');
+
+    const darwinTabs = [
+      { key:'solicitudes', label:`Solicitudes`, count: solicitudes.length },
+      { key:'seguimientos', label:`Seguimientos`, count: seguimientos.length },
+      { key:'finalizadas', label:`Finalizadas`, count: finalizadas.length },
+      { key:'rechazadas', label:`Rechazadas`, count: rechazadas.length },
+    ];
+
+    const currentList = { solicitudes, seguimientos, finalizadas, rechazadas }[tabDarwin] || [];
+
+    return (
+      <div>
+        <div className="page-header" style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+          <div>
+            <h1 className="page-title">Automatizaciones</h1>
+            <p className="page-subtitle">Gestión de solicitudes de mejora y automatización</p>
+          </div>
+          <button className="btn-nueva" onClick={onOpenNueva}>
+            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><line x1="9" y1="4" x2="9" y2="14"/><line x1="4" y1="9" x2="14" y2="9"/></svg>
+            Nueva solicitud
+          </button>
+        </div>
+
+        {solicitudes.length > 0 && tabDarwin !== 'solicitudes' && (
+          <div style={{ background:'#fff3e0', border:'1px solid #C98A2B', borderRadius:10, padding:'10px 16px', marginBottom:16, fontSize:13, color:'#C98A2B', fontWeight:600, cursor:'pointer' }} onClick={() => setTabDarwin('solicitudes')}>
+            ⚠️ {solicitudes.length} solicitud{solicitudes.length > 1 ? 'es' : ''} pendiente{solicitudes.length > 1 ? 's' : ''} de revisión
+          </div>
+        )}
+
+        <div className="tabs" style={{ marginBottom:16 }}>
+          {darwinTabs.map(t => (
+            <button key={t.key} className={`tab ${tabDarwin === t.key ? 'active' : ''}`} onClick={() => setTabDarwin(t.key)}>
+              {t.label} {t.count > 0 && <span style={{ marginLeft:4, background: tabDarwin === t.key ? 'rgba(255,255,255,0.3)' : '#e0e0e0', borderRadius:10, padding:'1px 7px', fontSize:11, fontWeight:700 }}>{t.count}</span>}
+            </button>
+          ))}
+        </div>
+
+        {currentList.length === 0 ? (
+          <div className="empty-state">
+            {tabDarwin === 'solicitudes' ? '🎉 No hay solicitudes pendientes.' :
+             tabDarwin === 'seguimientos' ? 'No hay automatizaciones en desarrollo.' :
+             tabDarwin === 'finalizadas' ? 'No hay automatizaciones finalizadas aún.' :
+             '✅ No hay solicitudes rechazadas.'}
+          </div>
+        ) : (
+          <div className="hist-list">
+            {currentList.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).map(auto => renderCard(auto, { hideEstado: true }))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* ---------- VISTA USUARIO NORMAL ---------- */
+  const misAutos = automatizaciones.filter(a => a.solicitante_email === user?.email);
+  const todasAutos = adminView === 'all' ? automatizaciones : misAutos;
+
+  let filtered = todasAutos;
   if (filtroArea !== 'all') filtered = filtered.filter(a => a.area === filtroArea);
   if (filtroPrioridad !== 'all') filtered = filtered.filter(a => a.prioridad === filtroPrioridad);
-
-  const pendientesDarwin = automatizaciones.filter(a => a.estado === 'pendiente').length;
 
   return (
     <div>
@@ -1837,20 +1948,9 @@ function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, is
         </button>
       </div>
 
-      {isDarwin && pendientesDarwin > 0 && (
-        <div style={{ background:'#fff3e0', border:'1px solid #C98A2B', borderRadius:10, padding:'10px 16px', marginBottom:16, fontSize:13, color:'#C98A2B', fontWeight:600 }}>
-          ⚠️ Tienes {pendientesDarwin} solicitud{pendientesDarwin > 1 ? 'es' : ''} pendiente{pendientesDarwin > 1 ? 's' : ''} de revisión
-        </div>
-      )}
-
       <AdminViewToggle view={adminView} setView={setAdminView} isAdmin={isAdmin} />
 
-      {/* Filtros */}
       <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap', alignItems:'center' }}>
-        <select className="form-select" style={{ width:'auto', padding:'6px 12px', fontSize:13 }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
-          <option value="all">Todos los estados</option>
-          {Object.entries(AUTO_ESTADOS).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
         <select className="form-select" style={{ width:'auto', padding:'6px 12px', fontSize:13 }} value={filtroArea} onChange={e => setFiltroArea(e.target.value)}>
           <option value="all">Todas las áreas</option>
           {AUTO_AREAS.map(a => <option key={a} value={a}>{a}</option>)}
@@ -1861,66 +1961,13 @@ function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, is
         </select>
       </div>
 
-      {/* KPIs */}
-      <div className="dash-kpi-main" style={{ marginBottom:20 }}>
-        {Object.entries(AUTO_ESTADOS).map(([k,v]) => {
-          const count = filtered.filter(a => a.estado === k).length;
-          return count > 0 ? (
-            <div key={k} className="stat-card" style={{ flex:1, minWidth:100 }}>
-              <div className="stat-card-label">{v.label}</div>
-              <div className="stat-card-value" style={{ color:v.color }}>{count}</div>
-            </div>
-          ) : null;
-        })}
-      </div>
-
       <div style={{ fontSize:13, color:'#888', marginBottom:16 }}>{filtered.length} solicitud{filtered.length !== 1 ? 'es' : ''}</div>
 
       {filtered.length === 0 ? (
-        <div className="empty-state">No hay solicitudes que coincidan con los filtros.</div>
+        <div className="empty-state">No tienes solicitudes aún. ¡Crea una nueva!</div>
       ) : (
         <div className="hist-list">
-          {filtered.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).map(auto => {
-            const asignado = empleados.find(e => e.id === auto.asignado_id);
-            const esMio = auto.solicitante_email === user?.email;
-            const puedeCalificar = esMio && auto.estado === 'finalizada' && !auto.calificacion;
-            return (
-              <div key={auto.id} className="hist-card" style={{ cursor:'pointer', borderLeft:`4px solid ${AUTO_ESTADOS[auto.estado]?.color || '#ddd'}` }} onClick={() => onOpenVer(auto)}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10 }}>
-                  <div style={{ flex:1 }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:6 }}>
-                      <span className="hist-desc" style={{ margin:0 }}>{auto.titulo}</span>
-                      <EstadoBadgeAuto estado={auto.estado} />
-                      <PrioridadBadge prioridad={auto.prioridad} />
-                    </div>
-                    <div className="hist-meta">
-                      {auto.area && <span>{auto.area} · </span>}
-                      Solicitado por {auto.solicitante_nombre} · {fmtDate(auto.created_at)}
-                      {asignado && <span> · Asignado: {firstName(asignado.name)}</span>}
-                      {auto.fecha_fin && <span> · Entrega: {fmtDate(auto.fecha_fin)}</span>}
-                      {auto.calificacion && <span> · {'★'.repeat(auto.calificacion)}{'☆'.repeat(5-auto.calificacion)}</span>}
-                    </div>
-                    {puedeCalificar && (
-                      <button className="btn-seg" style={{ marginTop:8, fontSize:12 }} onClick={e => { e.stopPropagation(); onCalificar(auto); }}>
-                        ⭐ Calificar automatización
-                      </button>
-                    )}
-                  </div>
-                  {isDarwin && auto.estado === 'pendiente' && (
-                    <div style={{ display:'flex', gap:6, flexShrink:0 }} onClick={e => e.stopPropagation()}>
-                      <button className="btn-lograr" style={{ fontSize:12 }} onClick={() => onAprobar(auto)}>✓ Aprobar</button>
-                      <button className="btn-eliminar" style={{ fontSize:12, padding:'6px 10px' }} onClick={() => onRechazar(auto)}>✗ Rechazar</button>
-                    </div>
-                  )}
-                  {isDarwin && auto.estado === 'en_desarrollo' && (
-                    <button style={{ fontSize:12, padding:'6px 12px', background:'#15362C', color:'white', border:'none', borderRadius:6, cursor:'pointer', flexShrink:0 }} onClick={e => { e.stopPropagation(); onFinalizar(auto); }}>
-                      ✓ Finalizar
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {filtered.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).map(auto => renderCard(auto))}
         </div>
       )}
     </div>
