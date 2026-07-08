@@ -256,6 +256,7 @@ function Sidebar({ user, screen, setScreen, isAdmin, onLogout, managerName, noti
       { id: 'notificaciones', icon: '🔔', label: 'Notificaciones' },
     ];
     if (hasRegistrosAccess) items.push({ id: 'registros', icon: '🧪', label: 'Registros' });
+    items.push({ id: 'automatizaciones', icon: '⚡', label: 'Automatizaciones' });
     items.push({ id: 'reconocimientos', icon: '🏆', label: 'Reconocimientos' });
     if (isAdmin) items.push({ id: 'config', icon: '⚙️', label: 'Configuración' });
   }
@@ -1764,6 +1765,400 @@ function ResetPasswordScreen({ onDone }) {
 }
 
 /* ================================================================
+   AUTOMATIZACIONES
+   ================================================================ */
+/* ================================================================
+   AUTOMATIZACIONES
+   ================================================================ */
+const DARWIN_EMAIL = 'dcalero@ferco-medical.com';
+const AUTO_ESTADOS = {
+  pendiente:      { label: 'Pendiente',      color: '#888',    bg: '#f5f5f5' },
+  en_revision:    { label: 'En revisión',    color: '#1F6FB2', bg: '#E8EFF6' },
+  aprobada:       { label: 'Aprobada',       color: '#2C8B5D', bg: '#e6f5ec' },
+  rechazada:      { label: 'Rechazada',      color: '#D64545', bg: '#fdecea' },
+  en_desarrollo:  { label: 'En desarrollo',  color: '#7B2FBE', bg: '#f3e8ff' },
+  pausada:        { label: 'Pausada',        color: '#C98A2B', bg: '#fff3e0' },
+  finalizada:     { label: 'Finalizada',     color: '#15362C', bg: '#d4edda' },
+};
+const AUTO_PRIORIDADES = {
+  alta:   { label: 'Alta',   color: '#D64545', bg: '#fdecea' },
+  media:  { label: 'Media',  color: '#C98A2B', bg: '#fff3e0' },
+  baja:   { label: 'Baja',   color: '#2C8B5D', bg: '#e6f5ec' },
+};
+const AUTO_FRECUENCIAS = ['diaria','semanal','mensual','puntual'];
+const AUTO_AREAS = ['Ventas','Cobranzas','RRHH','Registros Sanitarios','Logística','Compras','Contabilidad','TI','Gerencia','Otro'];
+
+function EstadoBadgeAuto({ estado }) {
+  const e = AUTO_ESTADOS[estado] || { label: estado, color: '#888', bg: '#f5f5f5' };
+  return <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'3px 10px', borderRadius:12, fontSize:12, fontWeight:700, background:e.bg, color:e.color }}>
+    <span style={{ width:7, height:7, borderRadius:'50%', background:e.color }} />{e.label}
+  </span>;
+}
+
+function PrioridadBadge({ prioridad }) {
+  const p = AUTO_PRIORIDADES[prioridad] || { label: prioridad, color: '#888', bg: '#f5f5f5' };
+  return <span style={{ padding:'2px 8px', borderRadius:8, fontSize:11, fontWeight:700, background:p.bg, color:p.color }}>{p.label}</span>;
+}
+
+function StarRatingAuto({ value, onChange }) {
+  return <div style={{ display:'flex', gap:4 }}>
+    {[1,2,3,4,5].map(n => (
+      <span key={n} onClick={() => onChange(n)} style={{ fontSize:24, cursor:'pointer', color: n <= value ? '#F5A623' : '#ddd', transition:'color 0.1s' }}>★</span>
+    ))}
+  </div>;
+}
+
+function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, isDarwin, onOpenNueva, onOpenVer, onOpenEditar, onAprobar, onRechazar, onFinalizar, onCalificar, adminView, setAdminView, isAdmin }) {
+  const [filtroEstado, setFiltroEstado] = useState('all');
+  const [filtroArea, setFiltroArea] = useState('all');
+  const [filtroPrioridad, setFiltroPrioridad] = useState('all');
+
+  const misAutos = automatizaciones.filter(a => a.solicitante_email === user?.email);
+  const todasAutos = automatizaciones;
+  const autos = adminView === 'all' ? todasAutos : misAutos;
+
+  let filtered = autos;
+  if (filtroEstado !== 'all') filtered = filtered.filter(a => a.estado === filtroEstado);
+  if (filtroArea !== 'all') filtered = filtered.filter(a => a.area === filtroArea);
+  if (filtroPrioridad !== 'all') filtered = filtered.filter(a => a.prioridad === filtroPrioridad);
+
+  const pendientesDarwin = automatizaciones.filter(a => a.estado === 'pendiente').length;
+
+  return (
+    <div>
+      <div className="page-header" style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+        <div>
+          <h1 className="page-title">Automatizaciones</h1>
+          <p className="page-subtitle">Solicitudes de mejora y automatización de procesos</p>
+        </div>
+        <button className="btn-nueva" onClick={onOpenNueva}>
+          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><line x1="9" y1="4" x2="9" y2="14"/><line x1="4" y1="9" x2="14" y2="9"/></svg>
+          Nueva solicitud
+        </button>
+      </div>
+
+      {isDarwin && pendientesDarwin > 0 && (
+        <div style={{ background:'#fff3e0', border:'1px solid #C98A2B', borderRadius:10, padding:'10px 16px', marginBottom:16, fontSize:13, color:'#C98A2B', fontWeight:600 }}>
+          ⚠️ Tienes {pendientesDarwin} solicitud{pendientesDarwin > 1 ? 'es' : ''} pendiente{pendientesDarwin > 1 ? 's' : ''} de revisión
+        </div>
+      )}
+
+      <AdminViewToggle view={adminView} setView={setAdminView} isAdmin={isAdmin} />
+
+      {/* Filtros */}
+      <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap', alignItems:'center' }}>
+        <select className="form-select" style={{ width:'auto', padding:'6px 12px', fontSize:13 }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
+          <option value="all">Todos los estados</option>
+          {Object.entries(AUTO_ESTADOS).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+        <select className="form-select" style={{ width:'auto', padding:'6px 12px', fontSize:13 }} value={filtroArea} onChange={e => setFiltroArea(e.target.value)}>
+          <option value="all">Todas las áreas</option>
+          {AUTO_AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <select className="form-select" style={{ width:'auto', padding:'6px 12px', fontSize:13 }} value={filtroPrioridad} onChange={e => setFiltroPrioridad(e.target.value)}>
+          <option value="all">Todas las prioridades</option>
+          {Object.entries(AUTO_PRIORIDADES).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+      </div>
+
+      {/* KPIs */}
+      <div className="dash-kpi-main" style={{ marginBottom:20 }}>
+        {Object.entries(AUTO_ESTADOS).map(([k,v]) => {
+          const count = filtered.filter(a => a.estado === k).length;
+          return count > 0 ? (
+            <div key={k} className="stat-card" style={{ flex:1, minWidth:100 }}>
+              <div className="stat-card-label">{v.label}</div>
+              <div className="stat-card-value" style={{ color:v.color }}>{count}</div>
+            </div>
+          ) : null;
+        })}
+      </div>
+
+      <div style={{ fontSize:13, color:'#888', marginBottom:16 }}>{filtered.length} solicitud{filtered.length !== 1 ? 'es' : ''}</div>
+
+      {filtered.length === 0 ? (
+        <div className="empty-state">No hay solicitudes que coincidan con los filtros.</div>
+      ) : (
+        <div className="hist-list">
+          {filtered.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).map(auto => {
+            const asignado = empleados.find(e => e.id === auto.asignado_id);
+            const esMio = auto.solicitante_email === user?.email;
+            const puedeCalificar = esMio && auto.estado === 'finalizada' && !auto.calificacion;
+            return (
+              <div key={auto.id} className="hist-card" style={{ cursor:'pointer', borderLeft:`4px solid ${AUTO_ESTADOS[auto.estado]?.color || '#ddd'}` }} onClick={() => onOpenVer(auto)}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10 }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:6 }}>
+                      <span className="hist-desc" style={{ margin:0 }}>{auto.titulo}</span>
+                      <EstadoBadgeAuto estado={auto.estado} />
+                      <PrioridadBadge prioridad={auto.prioridad} />
+                    </div>
+                    <div className="hist-meta">
+                      {auto.area && <span>{auto.area} · </span>}
+                      Solicitado por {auto.solicitante_nombre} · {fmtDate(auto.created_at)}
+                      {asignado && <span> · Asignado: {firstName(asignado.name)}</span>}
+                      {auto.fecha_fin && <span> · Entrega: {fmtDate(auto.fecha_fin)}</span>}
+                      {auto.calificacion && <span> · {'★'.repeat(auto.calificacion)}{'☆'.repeat(5-auto.calificacion)}</span>}
+                    </div>
+                    {puedeCalificar && (
+                      <button className="btn-seg" style={{ marginTop:8, fontSize:12 }} onClick={e => { e.stopPropagation(); onCalificar(auto); }}>
+                        ⭐ Calificar automatización
+                      </button>
+                    )}
+                  </div>
+                  {isDarwin && auto.estado === 'pendiente' && (
+                    <div style={{ display:'flex', gap:6, flexShrink:0 }} onClick={e => e.stopPropagation()}>
+                      <button className="btn-lograr" style={{ fontSize:12 }} onClick={() => onAprobar(auto)}>✓ Aprobar</button>
+                      <button className="btn-eliminar" style={{ fontSize:12, padding:'6px 10px' }} onClick={() => onRechazar(auto)}>✗ Rechazar</button>
+                    </div>
+                  )}
+                  {isDarwin && auto.estado === 'en_desarrollo' && (
+                    <button style={{ fontSize:12, padding:'6px 12px', background:'#15362C', color:'white', border:'none', borderRadius:6, cursor:'pointer', flexShrink:0 }} onClick={e => { e.stopPropagation(); onFinalizar(auto); }}>
+                      ✓ Finalizar
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function ModalAutomatizacion({ modal, onClose, auto, empleados, segAuto, user, isDarwin, onGuardar, onAprobar, onRechazar, onFinalizar, onCalificar, onAddSeguimiento }) {
+  const [form, setForm] = useState({});
+  const [segText, setSegText] = useState('');
+  const [starVal, setStarVal] = useState(0);
+  const [comentCal, setComentCal] = useState('');
+  const [motivoRechazo, setMotivoRechazo] = useState('');
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (modal === 'nueva') setForm({ prioridad:'media', frecuencia:'semanal', area:'', titulo:'', objetivo:'', problema:'', propuesta:'', tiempo_ahorrado:'' });
+    if (modal === 'editar' && auto) setForm({ ...auto });
+    if (modal === 'aprobar' && auto) setForm({ estado:'aprobada', asignado_id: auto.asignado_id || '', fecha_inicio: auto.fecha_inicio || '', fecha_fin: auto.fecha_fin || '' });
+    setErr(''); setSegText(''); setStarVal(auto?.calificacion || 0); setComentCal(''); setMotivoRechazo('');
+  }, [modal, auto]);
+
+  const f = (k, v) => setForm(s => ({ ...s, [k]: v }));
+
+  if (!modal) return null;
+
+  const darwinReports = empleados.filter(e => {
+    const darwin = empleados.find(emp => emp.email === DARWIN_EMAIL);
+    return darwin && e.manager_id === darwin.buk_employee_id;
+  });
+
+  /* ---- VER DETALLE ---- */
+  if (modal === 'ver') {
+    const segs = (segAuto || []).filter(s => s.automatizacion_id === auto?.id);
+    const asignado = empleados.find(e => e.id === auto?.asignado_id);
+    const puedeCalificar = auto?.solicitante_email === user?.email && auto?.estado === 'finalizada' && !auto?.calificacion;
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth:720 }}>
+          <div className="modal-header">
+            <h2 className="modal-title">{auto?.titulo}</h2>
+            <button className="modal-close" onClick={onClose}>✕</button>
+          </div>
+          <div className="modal-body">
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
+              <EstadoBadgeAuto estado={auto?.estado} />
+              <PrioridadBadge prioridad={auto?.prioridad} />
+              {auto?.area && <span style={{ fontSize:12, color:'#888', padding:'3px 8px', background:'#f5f5f5', borderRadius:8 }}>{auto.area}</span>}
+            </div>
+            <div style={{ display:'grid', gap:10, marginBottom:16 }}>
+              {[['Objetivo', auto?.objetivo], ['Problema identificado', auto?.problema], ['Propuesta de solución', auto?.propuesta], ['Tiempo ahorrado', auto?.tiempo_ahorrado], ['Frecuencia', auto?.frecuencia]].map(([l,v]) => v && (
+                <div key={l}><strong style={{ color:'#333', fontSize:13 }}>{l}:</strong><p style={{ margin:'4px 0 0', fontSize:13, color:'#555', whiteSpace:'pre-wrap' }}>{v}</p></div>
+              ))}
+              <div style={{ display:'flex', gap:20, flexWrap:'wrap', fontSize:13, color:'#777' }}>
+                <span>Solicitado por: <strong>{auto?.solicitante_nombre}</strong></span>
+                {asignado && <span>Asignado a: <strong>{asignado.name}</strong></span>}
+                {auto?.fecha_inicio && <span>Inicio: <strong>{fmtDate(auto.fecha_inicio)}</strong></span>}
+                {auto?.fecha_fin && <span>Entrega: <strong>{fmtDate(auto.fecha_fin)}</strong></span>}
+              </div>
+              {auto?.calificacion && (
+                <div style={{ background:'#fff8e6', padding:'10px 14px', borderRadius:8, border:'1px solid #F5A623' }}>
+                  <div style={{ fontWeight:700, fontSize:13, color:'#C98A2B', marginBottom:4 }}>⭐ Calificación del solicitante</div>
+                  <div style={{ fontSize:20 }}>{'★'.repeat(auto.calificacion)}{'☆'.repeat(5-auto.calificacion)}</div>
+                  {auto.comentario_calificacion && <p style={{ fontSize:13, color:'#555', margin:'6px 0 0' }}>{auto.comentario_calificacion}</p>}
+                </div>
+              )}
+            </div>
+
+            {/* Seguimientos */}
+            <div style={{ borderTop:'1px solid #f0f0f0', paddingTop:14 }}>
+              <div style={{ fontWeight:700, fontSize:13, color:'#333', marginBottom:10 }}>Seguimientos ({segs.length})</div>
+              {segs.length === 0 && <div style={{ color:'#aaa', fontSize:13 }}>Sin seguimientos aún.</div>}
+              <div style={{ display:'grid', gap:8, marginBottom:12 }}>
+                {segs.map(s => (
+                  <div key={s.id} style={{ background:'#f8f9fa', borderRadius:8, padding:'8px 12px' }}>
+                    <div style={{ fontSize:11, color:'#aaa', marginBottom:4 }}>{s.usuario_nombre} · {new Date(s.created_at).toLocaleString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
+                    <div style={{ fontSize:13, color:'#333', whiteSpace:'pre-wrap' }}>{s.observacion}</div>
+                  </div>
+                ))}
+              </div>
+              {auto?.estado !== 'finalizada' && auto?.estado !== 'rechazada' && (
+                <div>
+                  <textarea className="form-input" placeholder="Agregar seguimiento..." value={segText} onChange={e => setSegText(e.target.value)} rows={3} style={{ resize:'vertical' }} />
+                  <button className="btn-nueva" style={{ marginTop:8 }} onClick={() => { if (segText.trim()) { onAddSeguimiento(auto, segText); setSegText(''); } }}>Guardar seguimiento</button>
+                </div>
+              )}
+            </div>
+
+            {/* Calificar */}
+            {puedeCalificar && (
+              <div style={{ borderTop:'1px solid #f0f0f0', paddingTop:14, marginTop:8 }}>
+                <div style={{ fontWeight:700, fontSize:13, color:'#333', marginBottom:10 }}>⭐ Calificar esta automatización</div>
+                <StarRatingAuto value={starVal} onChange={setStarVal} />
+                <textarea className="form-input" placeholder="Comentarios (opcional)..." value={comentCal} onChange={e => setComentCal(e.target.value)} rows={3} style={{ marginTop:10 }} />
+                {err && <div className="form-error">{err}</div>}
+                <button className="btn-nueva" style={{ marginTop:10 }} onClick={() => { if (!starVal) return setErr('Debes seleccionar una calificación.'); onCalificar(auto, starVal, comentCal); }}>Guardar calificación</button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---- NUEVA / EDITAR ---- */
+  if (modal === 'nueva' || modal === 'editar') {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth:680 }}>
+          <div className="modal-header">
+            <h2 className="modal-title">{modal === 'nueva' ? 'Nueva solicitud de automatización' : 'Editar solicitud'}</h2>
+            <button className="modal-close" onClick={onClose}>✕</button>
+          </div>
+          <div className="modal-body">
+            {err && <div className="form-error">{err}</div>}
+            <div className="form-group"><label className="form-label">Nombre de la idea *</label><input className="form-input" value={form.titulo||''} onChange={e => f('titulo', e.target.value)} placeholder="Ej: Automatizar envío de reportes de ventas" /></div>
+            <div className="form-group"><label className="form-label">Objetivo de la mejora *</label><textarea className="form-input" rows={2} value={form.objetivo||''} onChange={e => f('objetivo', e.target.value)} placeholder="¿Qué se busca lograr con esta automatización?" /></div>
+            <div className="form-group"><label className="form-label">Problema identificado *</label><textarea className="form-input" rows={3} value={form.problema||''} onChange={e => f('problema', e.target.value)} placeholder="Describe el proceso actual y el problema que genera..." /></div>
+            <div className="form-group"><label className="form-label">Propuesta de solución *</label><textarea className="form-input" rows={3} value={form.propuesta||''} onChange={e => f('propuesta', e.target.value)} placeholder="¿Cómo crees que se podría automatizar o mejorar?" /></div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <div className="form-group"><label className="form-label">Tiempo ahorrado estimado</label><input className="form-input" value={form.tiempo_ahorrado||''} onChange={e => f('tiempo_ahorrado', e.target.value)} placeholder="Ej: 2 horas por semana" /></div>
+              <div className="form-group"><label className="form-label">Frecuencia de la tarea</label>
+                <select className="form-select" value={form.frecuencia||'semanal'} onChange={e => f('frecuencia', e.target.value)}>
+                  {AUTO_FRECUENCIAS.map(fr => <option key={fr} value={fr}>{fr.charAt(0).toUpperCase()+fr.slice(1)}</option>)}
+                </select>
+              </div>
+              <div className="form-group"><label className="form-label">Área</label>
+                <select className="form-select" value={form.area||''} onChange={e => f('area', e.target.value)}>
+                  <option value="">Seleccionar...</option>
+                  {AUTO_AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+              </div>
+              <div className="form-group"><label className="form-label">Prioridad</label>
+                <select className="form-select" value={form.prioridad||'media'} onChange={e => f('prioridad', e.target.value)}>
+                  {Object.entries(AUTO_PRIORIDADES).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+            <button className="btn-nueva" onClick={() => {
+              if (!form.titulo?.trim()) return setErr('El nombre de la idea es obligatorio.');
+              if (!form.objetivo?.trim()) return setErr('El objetivo es obligatorio.');
+              if (!form.problema?.trim()) return setErr('El problema identificado es obligatorio.');
+              if (!form.propuesta?.trim()) return setErr('La propuesta de solución es obligatoria.');
+              setErr(''); onGuardar(form);
+            }}>
+              {modal === 'nueva' ? 'Enviar solicitud' : 'Guardar cambios'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---- APROBAR (Darwin asigna, pone fechas, cambia estado) ---- */
+  if (modal === 'aprobar') {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth:520 }}>
+          <div className="modal-header"><h2 className="modal-title">Aprobar solicitud</h2><button className="modal-close" onClick={onClose}>✕</button></div>
+          <div className="modal-body">
+            {err && <div className="form-error">{err}</div>}
+            <div style={{ background:'#f8f9fa', borderRadius:8, padding:'10px 14px', marginBottom:14, fontSize:13, color:'#555' }}>
+              <strong>{auto?.titulo}</strong><br/>Solicitado por: {auto?.solicitante_nombre}
+            </div>
+            <div className="form-group"><label className="form-label">Estado</label>
+              <select className="form-select" value={form.estado||'aprobada'} onChange={e => f('estado', e.target.value)}>
+                {['aprobada','en_revision','en_desarrollo'].map(k => <option key={k} value={k}>{AUTO_ESTADOS[k].label}</option>)}
+              </select>
+            </div>
+            <div className="form-group"><label className="form-label">Asignar a</label>
+              <select className="form-select" value={form.asignado_id||''} onChange={e => f('asignado_id', e.target.value)}>
+                <option value="">Sin asignar</option>
+                {darwinReports.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <div className="form-group"><label className="form-label">Fecha de inicio</label><input type="date" className="form-input" value={form.fecha_inicio||''} onChange={e => f('fecha_inicio', e.target.value)} /></div>
+              <div className="form-group"><label className="form-label">Fecha de entrega</label><input type="date" className="form-input" value={form.fecha_fin||''} onChange={e => f('fecha_fin', e.target.value)} /></div>
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+            <button className="btn-nueva" onClick={() => { setErr(''); onAprobar(auto, form); }}>Confirmar aprobación</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---- RECHAZAR ---- */
+  if (modal === 'rechazar') {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth:480 }}>
+          <div className="modal-header"><h2 className="modal-title">Rechazar solicitud</h2><button className="modal-close" onClick={onClose}>✕</button></div>
+          <div className="modal-body">
+            {err && <div className="form-error">{err}</div>}
+            <div style={{ background:'#fdecea', borderRadius:8, padding:'10px 14px', marginBottom:14, fontSize:13, color:'#D64545' }}>
+              <strong>{auto?.titulo}</strong>
+            </div>
+            <div className="form-group"><label className="form-label">Motivo del rechazo *</label><textarea className="form-input" rows={4} value={motivoRechazo} onChange={e => setMotivoRechazo(e.target.value)} placeholder="Explica por qué se rechaza esta solicitud..." /></div>
+          </div>
+          <div className="modal-footer">
+            <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+            <button style={{ padding:'10px 20px', background:'#D64545', color:'white', border:'none', borderRadius:8, cursor:'pointer', fontWeight:600 }} onClick={() => { if (!motivoRechazo.trim()) return setErr('El motivo es obligatorio.'); onRechazar(auto, motivoRechazo); }}>Confirmar rechazo</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---- FINALIZAR ---- */
+  if (modal === 'finalizar') {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth:480 }}>
+          <div className="modal-header"><h2 className="modal-title">Finalizar automatización</h2><button className="modal-close" onClick={onClose}>✕</button></div>
+          <div className="modal-body">
+            <p style={{ fontSize:13, color:'#555' }}>¿Confirmas que la automatización <strong>"{auto?.titulo}"</strong> está completamente finalizada?</p>
+            <p style={{ fontSize:13, color:'#888' }}>El solicitante recibirá una notificación para calificarla.</p>
+          </div>
+          <div className="modal-footer">
+            <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+            <button style={{ padding:'10px 20px', background:'#15362C', color:'white', border:'none', borderRadius:8, cursor:'pointer', fontWeight:600 }} onClick={() => onFinalizar(auto)}>✓ Marcar como finalizada</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+
+/* ================================================================
    RECONOCIMIENTOS
    ================================================================ */
 function ReconocimientosScreen({ recognitions, employees, opportunities, categories }) {
@@ -1841,6 +2236,10 @@ export default function App() {
   const [certDigemid, setCertDigemid] = useState([]);
   const [rsAuditLog, setRsAuditLog] = useState([]);
   const [recognitions, setRecognitions] = useState([]);
+  const [automatizaciones, setAutomatizaciones] = useState([]);
+  const [segAuto, setSegAuto] = useState([]);
+  const [autoModal, setAutoModal] = useState(null);
+  const [autoSelected, setAutoSelected] = useState(null);
   const [recognitionModal, setRecognitionModal] = useState(false);
   const [pendingLograrOpp, setPendingLograrOpp] = useState(null);
   const [recognitionComment, setRecognitionComment] = useState('');
@@ -1943,11 +2342,19 @@ export default function App() {
     const { data } = await supabase.from('recognitions').select('*').order('created_at', { ascending: false });
     setRecognitions(data || []);
   }, []);
+  const loadAutomatizaciones = useCallback(async () => {
+    const { data } = await supabase.from('automatizaciones').select('*').order('created_at', { ascending: false });
+    setAutomatizaciones(data || []);
+  }, []);
+  const loadSegAuto = useCallback(async () => {
+    const { data } = await supabase.from('automatizaciones_seguimientos').select('*').order('created_at', { ascending: true });
+    setSegAuto(data || []);
+  }, []);
   const loadAll = useCallback(() => {
     loadEmployees(); loadOpportunities(); loadFollowups(); loadAssignments(); loadCategories(); loadTasks();
     loadModulePermissions(); loadRsDM(); loadRsCosm(); loadRsPF(); loadRsDigesa(); loadCertDigemid();
-    loadRsAuditLog(); loadRecognitions(); loadRsPdfLog();
-  }, [loadEmployees, loadOpportunities, loadFollowups, loadAssignments, loadCategories, loadTasks, loadModulePermissions, loadRsDM, loadRsCosm, loadRsPF, loadRsDigesa, loadCertDigemid, loadRsAuditLog, loadRecognitions, loadRsPdfLog]);
+    loadRsAuditLog(); loadRecognitions(); loadRsPdfLog(); loadAutomatizaciones(); loadSegAuto();
+  }, [loadEmployees, loadOpportunities, loadFollowups, loadAssignments, loadCategories, loadTasks, loadModulePermissions, loadRsDM, loadRsCosm, loadRsPF, loadRsDigesa, loadCertDigemid, loadRsAuditLog, loadRecognitions, loadRsPdfLog, loadAutomatizaciones, loadSegAuto]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -2023,6 +2430,56 @@ export default function App() {
     loadRsAuditLog();
   };
   const closeRsModal = () => { setRsModal(null); setRsEditItem(null); setRsForm({}); setFormError(''); };
+
+  const isDarwin = user?.email === DARWIN_EMAIL;
+  const closeAutoModal = () => { setAutoModal(null); setAutoSelected(null); };
+
+  const handleNuevaAuto = async (form) => {
+    const { error } = await supabase.from('automatizaciones').insert([{
+      ...form, solicitante_email: user?.email, solicitante_nombre: currentManager?.name || user?.email, estado: 'pendiente',
+    }]);
+    if (error) return alert('Error al guardar: ' + error.message);
+    loadAutomatizaciones(); closeAutoModal();
+  };
+
+  const handleEditarAuto = async (form) => {
+    const { error } = await supabase.from('automatizaciones').update({ ...form, updated_at: new Date().toISOString() }).eq('id', autoSelected.id);
+    if (error) return alert('Error al guardar: ' + error.message);
+    loadAutomatizaciones(); closeAutoModal();
+  };
+
+  const handleAprobarAuto = async (auto, form) => {
+    const { error } = await supabase.from('automatizaciones').update({
+      estado: form.estado, asignado_id: form.asignado_id || null,
+      fecha_inicio: form.fecha_inicio || null, fecha_fin: form.fecha_fin || null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', auto.id);
+    if (error) return alert('Error: ' + error.message);
+    await supabase.from('automatizaciones_log').insert([{ automatizacion_id: auto.id, campo: 'estado', valor_anterior: auto.estado, valor_nuevo: form.estado, usuario_email: user?.email, usuario_nombre: currentManager?.name || user?.email }]);
+    loadAutomatizaciones(); closeAutoModal();
+  };
+
+  const handleRechazarAuto = async (auto, motivo) => {
+    await supabase.from('automatizaciones').update({ estado: 'rechazada', motivo_rechazo: motivo, updated_at: new Date().toISOString() }).eq('id', auto.id);
+    await supabase.from('automatizaciones_log').insert([{ automatizacion_id: auto.id, campo: 'estado', valor_anterior: auto.estado, valor_nuevo: 'rechazada', usuario_email: user?.email, usuario_nombre: currentManager?.name || user?.email }]);
+    loadAutomatizaciones(); closeAutoModal();
+  };
+
+  const handleFinalizarAuto = async (auto) => {
+    await supabase.from('automatizaciones').update({ estado: 'finalizada', updated_at: new Date().toISOString() }).eq('id', auto.id);
+    await supabase.from('automatizaciones_log').insert([{ automatizacion_id: auto.id, campo: 'estado', valor_anterior: auto.estado, valor_nuevo: 'finalizada', usuario_email: user?.email, usuario_nombre: currentManager?.name || user?.email }]);
+    loadAutomatizaciones(); closeAutoModal();
+  };
+
+  const handleCalificarAuto = async (auto, calificacion, comentario) => {
+    await supabase.from('automatizaciones').update({ calificacion, comentario_calificacion: comentario, calificado_at: new Date().toISOString() }).eq('id', auto.id);
+    loadAutomatizaciones(); closeAutoModal();
+  };
+
+  const handleAddSegAuto = async (auto, texto) => {
+    await supabase.from('automatizaciones_seguimientos').insert([{ automatizacion_id: auto.id, observacion: texto, usuario_email: user?.email, usuario_nombre: currentManager?.name || user?.email }]);
+    loadSegAuto();
+  };
 
   const rsLoaders = { dm: loadRsDM, cosm: loadRsCosm, pf: loadRsPF, digesa: loadRsDigesa, cert: loadCertDigemid };
 
@@ -2260,6 +2717,8 @@ export default function App() {
         {screen === 'config' && isAdmin && <ConfigScreen employees={employees} categories={categories} onEmployeesUpdated={loadEmployees} onAssignmentsUpdated={loadAssignments} onCategoriesUpdated={loadCategories} />}
         {screen === 'config' && !isAdmin && <div className="error-msg">No tienes acceso a esta sección</div>}
         {screen === 'reconocimientos' && <ReconocimientosScreen recognitions={recognitions} employees={employees} opportunities={opportunities} categories={categories} />}
+        {screen === 'automatizaciones' && <AutomatizacionesScreen automatizaciones={automatizaciones} segAuto={segAuto} empleados={activeEmps} user={user} isDarwin={isDarwin} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenNueva={() => { setAutoSelected(null); setAutoModal('nueva'); }} onOpenVer={(a) => { setAutoSelected(a); setAutoModal('ver'); }} onOpenEditar={(a) => { setAutoSelected(a); setAutoModal('editar'); }} onAprobar={(a) => { setAutoSelected(a); setAutoModal('aprobar'); }} onRechazar={(a) => { setAutoSelected(a); setAutoModal('rechazar'); }} onFinalizar={(a) => { setAutoSelected(a); setAutoModal('finalizar'); }} onCalificar={(a) => { setAutoSelected(a); setAutoModal('ver'); }} />}
+        <ModalAutomatizacion modal={autoModal} onClose={closeAutoModal} auto={autoSelected} empleados={activeEmps} segAuto={segAuto} user={user} isDarwin={isDarwin} onGuardar={autoModal === 'nueva' ? handleNuevaAuto : handleEditarAuto} onAprobar={handleAprobarAuto} onRechazar={handleRechazarAuto} onFinalizar={handleFinalizarAuto} onCalificar={handleCalificarAuto} onAddSeguimiento={handleAddSegAuto} />
       </main>
 
       {/* MODAL: NUEVA OPORTUNIDAD */}
