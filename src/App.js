@@ -1811,8 +1811,6 @@ function StarRatingAuto({ value, onChange }) {
 function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, isDarwin, onOpenNueva, onOpenVer, onOpenEditar, onAprobar, onRechazar, onFinalizar, onCalificar, adminView, setAdminView, isAdmin }) {
   const [tabDarwin, setTabDarwin] = useState('solicitudes');
   const [tabUser, setTabUser] = useState('solicitudes');
-  const [filtroArea, setFiltroArea] = useState('all');
-  const [filtroPrioridad, setFiltroPrioridad] = useState('all');
 
   const renderCard = (auto, opts = {}) => {
     const asignado = empleados.find(e => e.id === auto.asignado_id);
