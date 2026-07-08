@@ -1221,7 +1221,7 @@ async function generarPdfRegistros(dataMap) {
   doc.save(`Registros_Sanitarios_Ferco_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
-function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDigesa, certDigemid, canEdit, onOpenNuevo, onOpenEditar, onOpenEliminar, rsAuditLog, onUploadPdf, uploadingPdf }) {
+function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDigesa, certDigemid, canEdit, onOpenNuevo, onOpenEditar, onOpenEliminar, rsAuditLog, rsPdfLog, onUploadPdf, onDeletePdf, uploadingPdf }) {
   const dataMap = { dm: rsDM, cosm: rsCosm, pf: rsPF, digesa: rsDigesa, cert: certDigemid };
   const schema = RS_SCHEMAS[rsTab];
   const items = dataMap[rsTab] || [];
@@ -1412,15 +1412,22 @@ function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDige
                         <span> · <a href={item.pdf_url} target="_blank" rel="noopener noreferrer" style={{ color: '#1F6FB2', fontWeight: 600, textDecoration: 'none' }}>📄 Ver PDF</a></span>
                       )}
                     </div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
                       <button className="followup-toggle" onClick={() => toggleItem(item.id)}>
                         {isExpanded ? 'Ver menos' : 'Ver más'}
                       </button>
                       {canEdit && (
-                        <label className="followup-toggle" style={{ cursor: uploadingPdf === item.id ? 'wait' : 'pointer', color: item.pdf_url ? '#2C8B5D' : '#1F6FB2' }}>
-                          {uploadingPdf === item.id ? '⏳ Subiendo...' : item.pdf_url ? '📄 Cambiar PDF' : '📎 Subir PDF'}
-                          <input type="file" accept=".pdf" style={{ display: 'none' }} disabled={!!uploadingPdf} onChange={e => { if (e.target.files[0]) onUploadPdf(rsTab, item, e.target.files[0]); e.target.value = ''; }} />
-                        </label>
+                        <>
+                          <label className="followup-toggle" style={{ cursor: uploadingPdf === item.id ? 'wait' : 'pointer', color: '#1F6FB2' }}>
+                            {uploadingPdf === item.id ? '⏳ Subiendo...' : item.pdf_url ? '📄 Cambiar PDF' : '📎 Subir PDF'}
+                            <input type="file" accept=".pdf" style={{ display: 'none' }} disabled={!!uploadingPdf} onChange={e => { if (e.target.files[0]) onUploadPdf(rsTab, item, e.target.files[0]); e.target.value = ''; }} />
+                          </label>
+                          {item.pdf_url && (
+                            <button className="followup-toggle" style={{ color: '#D64545', cursor: 'pointer' }} onClick={() => onDeletePdf(rsTab, item)}>
+                              🗑️ Quitar PDF
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                     {isExpanded && (
@@ -1435,18 +1442,41 @@ function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDige
                         ))}
                         {(() => {
                           const logs = (rsAuditLog || []).filter(l => l.record_id === item.id && l.tabla === schema.table);
-                          return logs.length > 0 && (
-                            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e0e0e0' }}>
-                              <div style={{ fontWeight: 700, fontSize: 12, color: '#888', marginBottom: 6 }}>📋 Historial de cambios</div>
-                              {logs.map((l, i) => (
-                                <div key={i} style={{ fontSize: 12, color: '#777', padding: '4px 0', borderBottom: '1px solid #f5f5f5' }}>
-                                  <span style={{ fontWeight: 600, color: '#555' }}>{l.usuario_nombre || l.usuario_email || '—'}</span>
-                                  {' · '}{l.accion === 'CREAR' ? '🆕' : l.accion === 'EDITAR' ? '✏️' : '🗑️'}{' '}
-                                  {l.valor_nuevo || l.accion}
-                                  {' · '}<span style={{ color: '#aaa' }}>{new Date(l.created_at).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                          const pdfLogs = (rsPdfLog || []).filter(l => l.record_id === item.id && l.tabla === schema.table);
+                          return (
+                            <>
+                              {pdfLogs.length > 0 && (
+                                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e0e0e0' }}>
+                                  <div style={{ fontWeight: 700, fontSize: 12, color: '#888', marginBottom: 6 }}>📁 Historial de PDFs</div>
+                                  {pdfLogs.map((l, i) => (
+                                    <div key={i} style={{ fontSize: 12, color: '#777', padding: '6px 0', borderBottom: '1px solid #f5f5f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                      <div>
+                                        <span style={{ fontWeight: 600, color: '#555' }}>{l.usuario_nombre || l.usuario_email || '—'}</span>
+                                        {' · '}{l.accion === 'SUBIR' ? '🆕 Subido' : l.accion === 'REEMPLAZAR' ? '🔄 Reemplazado' : '🗑️ Eliminado'}
+                                        {' · '}<span style={{ color: '#aaa' }}>{new Date(l.created_at).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                        {l.nombre_archivo && <span style={{ color: '#999' }}> · {l.nombre_archivo}</span>}
+                                      </div>
+                                      {l.pdf_url && (
+                                        <a href={l.pdf_url} target="_blank" rel="noopener noreferrer" style={{ color: '#1F6FB2', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap', fontSize: 11 }}>📄 Ver</a>
+                                      )}
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
-                            </div>
+                              )}
+                              {logs.length > 0 && (
+                                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e0e0e0' }}>
+                                  <div style={{ fontWeight: 700, fontSize: 12, color: '#888', marginBottom: 6 }}>📋 Historial de cambios</div>
+                                  {logs.map((l, i) => (
+                                    <div key={i} style={{ fontSize: 12, color: '#777', padding: '4px 0', borderBottom: '1px solid #f5f5f5' }}>
+                                      <span style={{ fontWeight: 600, color: '#555' }}>{l.usuario_nombre || l.usuario_email || '—'}</span>
+                                      {' · '}{l.accion === 'CREAR' ? '🆕' : l.accion === 'EDITAR' ? '✏️' : '🗑️'}{' '}
+                                      {l.valor_nuevo || l.accion}
+                                      {' · '}<span style={{ color: '#aaa' }}>{new Date(l.created_at).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </>
                           );
                         })()}
                       </div>
@@ -1904,6 +1934,11 @@ export default function App() {
     const { data } = await supabase.from('rs_audit_log').select('*').order('created_at', { ascending: false });
     setRsAuditLog(data || []);
   }, []);
+  const [rsPdfLog, setRsPdfLog] = useState([]);
+  const loadRsPdfLog = useCallback(async () => {
+    const { data } = await supabase.from('rs_pdf_log').select('*').order('created_at', { ascending: false });
+    setRsPdfLog(data || []);
+  }, []);
   const loadRecognitions = useCallback(async () => {
     const { data } = await supabase.from('recognitions').select('*').order('created_at', { ascending: false });
     setRecognitions(data || []);
@@ -1911,8 +1946,8 @@ export default function App() {
   const loadAll = useCallback(() => {
     loadEmployees(); loadOpportunities(); loadFollowups(); loadAssignments(); loadCategories(); loadTasks();
     loadModulePermissions(); loadRsDM(); loadRsCosm(); loadRsPF(); loadRsDigesa(); loadCertDigemid();
-    loadRsAuditLog(); loadRecognitions();
-  }, [loadEmployees, loadOpportunities, loadFollowups, loadAssignments, loadCategories, loadTasks, loadModulePermissions, loadRsDM, loadRsCosm, loadRsPF, loadRsDigesa, loadCertDigemid, loadRsAuditLog, loadRecognitions]);
+    loadRsAuditLog(); loadRecognitions(); loadRsPdfLog();
+  }, [loadEmployees, loadOpportunities, loadFollowups, loadAssignments, loadCategories, loadTasks, loadModulePermissions, loadRsDM, loadRsCosm, loadRsPF, loadRsDigesa, loadCertDigemid, loadRsAuditLog, loadRecognitions, loadRsPdfLog]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -1955,14 +1990,37 @@ export default function App() {
     try {
       const url = await uploadPdfToR2(file);
       const schema = RS_SCHEMAS[tabKey];
+      const accion = item.pdf_url ? 'REEMPLAZAR' : 'SUBIR';
       await supabase.from(schema.table).update({ pdf_url: url }).eq('id', item.id);
-      await supabase.from('rs_audit_log').insert([{ tabla: schema.table, record_id: item.id, accion: 'EDITAR', campo: 'pdf_url', valor_nuevo: `PDF subido: ${file.name}`, usuario_email: user?.email, usuario_nombre: currentManager?.name || user?.email }]);
-      // Recargar datos
+      await supabase.from('rs_pdf_log').insert([{
+        tabla: schema.table, record_id: item.id, pdf_url: url,
+        nombre_archivo: file.name, accion,
+        usuario_email: user?.email, usuario_nombre: currentManager?.name || user?.email
+      }]);
+      await supabase.from('rs_audit_log').insert([{
+        tabla: schema.table, record_id: item.id, accion: 'EDITAR',
+        valor_nuevo: `${accion === 'REEMPLAZAR' ? 'PDF reemplazado' : 'PDF subido'}: ${file.name}`,
+        usuario_email: user?.email, usuario_nombre: currentManager?.name || user?.email
+      }]);
       const loaders = { dm: loadRsDM, cosm: loadRsCosm, pf: loadRsPF, digesa: loadRsDigesa, cert: loadCertDigemid };
       if (loaders[tabKey]) loaders[tabKey]();
-      loadRsAuditLog();
+      loadRsAuditLog(); loadRsPdfLog();
     } catch (err) { alert('Error al subir PDF: ' + err.message); }
     finally { setUploadingPdf(null); }
+  };
+
+  const handleDeletePdf = async (tabKey, item) => {
+    if (!window.confirm('¿Quitar el PDF de este registro? El archivo seguirá guardado en el historial.')) return;
+    const schema = RS_SCHEMAS[tabKey];
+    await supabase.from(schema.table).update({ pdf_url: null }).eq('id', item.id);
+    await supabase.from('rs_audit_log').insert([{
+      tabla: schema.table, record_id: item.id, accion: 'EDITAR',
+      valor_nuevo: 'PDF eliminado del registro (archivo conservado en historial)',
+      usuario_email: user?.email, usuario_nombre: currentManager?.name || user?.email
+    }]);
+    const loaders = { dm: loadRsDM, cosm: loadRsCosm, pf: loadRsPF, digesa: loadRsDigesa, cert: loadCertDigemid };
+    if (loaders[tabKey]) loaders[tabKey]();
+    loadRsAuditLog();
   };
   const closeRsModal = () => { setRsModal(null); setRsEditItem(null); setRsForm({}); setFormError(''); };
 
@@ -2197,7 +2255,7 @@ export default function App() {
         {!isRegistrosOnly && screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} tasks={tasks} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenEliminar={openEliminar} onOpenEditarOpp={openEditarOpp} onOpenNuevaTask={openNuevaTask} onOpenSeguimientoTask={openSeguimientoTask} onOpenLograrTask={openLograrTask} onOpenEliminarTask={openEliminarTask} onOpenEditarTask={openEditarTask} onOpenEditarFollowup={openEditarFollowup} selectedWorkerId={selectedWorkerId} setSelectedWorkerId={setSelectedWorkerId} expandedOpps={expandedOpps} toggleOpp={toggleOpp} expandedTasks={expandedTasks} toggleTask={toggleTask} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {!isRegistrosOnly && screen === 'historial' && <HistorialScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenDetalle={openDetalle} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {screen === 'notificaciones' && <NotificacionesScreen myTasks={myTasksList} myOpportunities={myOpportunities} allTasks={allTasksList} allOpportunities={allOpportunities} myFollowups={myFollowupsList} allFollowups={allFollowupsList} allEmployees={activeEmps} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenInTrabajadores={goToTaskInTrabajadores} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} hasRegistrosAccess={hasRegistrosAccess} onOpenInRegistros={(tab) => { setScreen('registros'); setRsTab(tab); }} />}
-        {screen === 'registros' && hasRegistrosAccess && <RegistrosSanitariosScreen rsTab={rsTab} setRsTab={setRsTab} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} canEdit={canEditRegistros} onOpenNuevo={openRsNuevo} onOpenEditar={openRsEditar} onOpenEliminar={openRsEliminar} rsAuditLog={rsAuditLog} onUploadPdf={handleUploadPdf} uploadingPdf={uploadingPdf} />}
+        {screen === 'registros' && hasRegistrosAccess && <RegistrosSanitariosScreen rsTab={rsTab} setRsTab={setRsTab} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} canEdit={canEditRegistros} onOpenNuevo={openRsNuevo} onOpenEditar={openRsEditar} onOpenEliminar={openRsEliminar} rsAuditLog={rsAuditLog} rsPdfLog={rsPdfLog} onUploadPdf={handleUploadPdf} onDeletePdf={handleDeletePdf} uploadingPdf={uploadingPdf} />}
         {screen === 'registros' && !hasRegistrosAccess && <div className="error-msg">No tienes acceso a esta sección</div>}
         {screen === 'config' && isAdmin && <ConfigScreen employees={employees} categories={categories} onEmployeesUpdated={loadEmployees} onAssignmentsUpdated={loadAssignments} onCategoriesUpdated={loadCategories} />}
         {screen === 'config' && !isAdmin && <div className="error-msg">No tienes acceso a esta sección</div>}
