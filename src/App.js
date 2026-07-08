@@ -1771,6 +1771,8 @@ function ResetPasswordScreen({ onDone }) {
    AUTOMATIZACIONES
    ================================================================ */
 const DARWIN_EMAIL = 'dcalero@ferco-medical.com';
+const RAFAEL_EMAIL = 'rfernandezc@ferco-medical.com';
+const AUTO_AREAS = ['Almacén','Distribución','Compras','Comercial','Planeamiento','SAC','Ventas','Contabilidad','Gestión de Personas','Gerencia','Transversal','Costos y Presupuestos'];
 const AUTO_ESTADOS = {
   pendiente:      { label: 'Pendiente',      color: '#888',    bg: '#f5f5f5' },
   en_revision:    { label: 'En revisión',    color: '#1F6FB2', bg: '#E8EFF6' },
@@ -1786,7 +1788,6 @@ const AUTO_PRIORIDADES = {
   baja:   { label: 'Baja',   color: '#2C8B5D', bg: '#e6f5ec' },
 };
 const AUTO_FRECUENCIAS = ['diaria','semanal','mensual','puntual'];
-const AUTO_AREAS = ['Ventas','Cobranzas','RRHH','Registros Sanitarios','Logística','Compras','Contabilidad','TI','Gerencia','Otro'];
 
 function EstadoBadgeAuto({ estado }) {
   const e = AUTO_ESTADOS[estado] || { label: estado, color: '#888', bg: '#f5f5f5' };
@@ -1808,7 +1809,7 @@ function StarRatingAuto({ value, onChange }) {
   </div>;
 }
 
-function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, isDarwin, onOpenNueva, onOpenVer, onOpenEditar, onAprobar, onRechazar, onFinalizar, onCalificar, adminView, setAdminView, isAdmin }) {
+function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, isDarwin, isRafael, onOpenNueva, onOpenVer, onOpenEditar, onAprobar, onRechazar, onFinalizar, onCalificar, adminView, setAdminView, isAdmin }) {
   const [tabDarwin, setTabDarwin] = useState('solicitudes');
   const [tabUser, setTabUser] = useState('solicitudes');
 
@@ -1926,6 +1927,47 @@ function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, is
     );
   }
 
+  /* ---------- VISTA RAFAEL (ve todo, no aprueba) ---------- */
+  if (isRafael) {
+    const rafaelTabs = [
+      { key: 'solicitudes', label: 'Solicitudes', estados: ['pendiente','en_revision','aprobada'] },
+      { key: 'seguimientos', label: 'Seguimientos', estados: ['en_desarrollo','pausada'] },
+      { key: 'finalizadas', label: 'Finalizadas', estados: ['finalizada'] },
+      { key: 'rechazadas', label: 'Rechazadas', estados: ['rechazada'] },
+    ];
+    const currentTabR = rafaelTabs.find(t => t.key === tabUser);
+    const rafaelFiltered = automatizaciones.filter(a => currentTabR?.estados.includes(a.estado));
+
+    return (
+      <div>
+        <div className="page-header" style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+          <div><h1 className="page-title">Automatizaciones</h1><p className="page-subtitle">Vista general de todas las solicitudes</p></div>
+          <button className="btn-nueva" onClick={onOpenNueva}>
+            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><line x1="9" y1="4" x2="9" y2="14"/><line x1="4" y1="9" x2="14" y2="9"/></svg>
+            Nueva solicitud
+          </button>
+        </div>
+        <div className="tabs" style={{ marginBottom:16 }}>
+          {rafaelTabs.map(t => {
+            const count = automatizaciones.filter(a => t.estados.includes(a.estado)).length;
+            return (
+              <button key={t.key} className={`tab ${tabUser === t.key ? 'active' : ''}`} onClick={() => setTabUser(t.key)}>
+                {t.label} {count > 0 && <span style={{ marginLeft:4, background: tabUser === t.key ? 'rgba(255,255,255,0.3)' : '#e0e0e0', borderRadius:10, padding:'1px 7px', fontSize:11, fontWeight:700 }}>{count}</span>}
+              </button>
+            );
+          })}
+        </div>
+        {rafaelFiltered.length === 0 ? (
+          <div className="empty-state">No hay solicitudes en esta categoría.</div>
+        ) : (
+          <div className="hist-list">
+            {rafaelFiltered.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).map(auto => renderCard(auto))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   /* ---------- VISTA USUARIO NORMAL ---------- */
   const misAutos = automatizaciones.filter(a => a.solicitante_email === user?.email);
 
@@ -1980,7 +2022,7 @@ function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, is
 }
 
 
-function ModalAutomatizacion({ modal, onClose, auto, empleados, segAuto, user, isDarwin, onGuardar, onAprobar, onRechazar, onFinalizar, onCalificar, onAddSeguimiento }) {
+function ModalAutomatizacion({ modal, onClose, auto, empleados, segAuto, user, isDarwin, isRafael, onGuardar, onAprobar, onRechazar, onFinalizar, onCalificar, onAddSeguimiento }) {
   const [form, setForm] = useState({});
   const [segText, setSegText] = useState('');
   const [starVal, setStarVal] = useState(0);
@@ -2025,11 +2067,42 @@ function ModalAutomatizacion({ modal, onClose, auto, empleados, segAuto, user, i
               {[['Objetivo', auto?.objetivo], ['Problema identificado', auto?.problema], ['Propuesta de solución', auto?.propuesta], ['Tiempo ahorrado', auto?.tiempo_ahorrado], ['Frecuencia', auto?.frecuencia]].map(([l,v]) => v && (
                 <div key={l}><strong style={{ color:'#333', fontSize:13 }}>{l}:</strong><p style={{ margin:'4px 0 0', fontSize:13, color:'#555', whiteSpace:'pre-wrap' }}>{v}</p></div>
               ))}
-              <div style={{ display:'flex', gap:20, flexWrap:'wrap', fontSize:13, color:'#777' }}>
+              <div style={{ display:'flex', gap:20, flexWrap:'wrap', fontSize:13, color:'#777', alignItems:'center' }}>
                 <span>Solicitado por: <strong>{auto?.solicitante_nombre}</strong></span>
                 {asignado && <span>Asignado a: <strong>{asignado.name}</strong></span>}
-                {auto?.fecha_inicio && <span>Inicio: <strong>{fmtDate(auto.fecha_inicio)}</strong></span>}
-                {auto?.fecha_fin && <span>Entrega: <strong>{fmtDate(auto.fecha_fin)}</strong></span>}
+                {isDarwin ? (
+                  <>
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <span>Inicio:</span>
+                      <input type="date" className="form-input" style={{ padding:'3px 8px', fontSize:12, width:'auto' }}
+                        value={form.fecha_inicio || auto?.fecha_inicio || ''}
+                        onChange={e => f('fecha_inicio', e.target.value)}
+                        onBlur={async e => {
+                          if (e.target.value !== (auto?.fecha_inicio || '')) {
+                            await onGuardar({ ...auto, fecha_inicio: e.target.value || null });
+                          }
+                        }}
+                      />
+                    </div>
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <span>Entrega:</span>
+                      <input type="date" className="form-input" style={{ padding:'3px 8px', fontSize:12, width:'auto' }}
+                        value={form.fecha_fin || auto?.fecha_fin || ''}
+                        onChange={e => f('fecha_fin', e.target.value)}
+                        onBlur={async e => {
+                          if (e.target.value !== (auto?.fecha_fin || '')) {
+                            await onGuardar({ ...auto, fecha_fin: e.target.value || null });
+                          }
+                        }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {auto?.fecha_inicio && <span>Inicio: <strong>{fmtDate(auto.fecha_inicio)}</strong></span>}
+                    {auto?.fecha_fin && <span>Entrega: <strong>{fmtDate(auto.fecha_fin)}</strong></span>}
+                  </>
+                )}
               </div>
               {auto?.calificacion && (
                 <div style={{ background:'#fff8e6', padding:'10px 14px', borderRadius:8, border:'1px solid #F5A623' }}>
@@ -2052,7 +2125,7 @@ function ModalAutomatizacion({ modal, onClose, auto, empleados, segAuto, user, i
                   </div>
                 ))}
               </div>
-              {auto?.estado !== 'finalizada' && auto?.estado !== 'rechazada' && (
+              {['aprobada','en_desarrollo','pausada'].includes(auto?.estado) && (
                 <div>
                   <textarea className="form-input" placeholder="Agregar seguimiento..." value={segText} onChange={e => setSegText(e.target.value)} rows={3} style={{ resize:'vertical' }} />
                   <button className="btn-nueva" style={{ marginTop:8 }} onClick={() => { if (segText.trim()) { onAddSeguimiento(auto, segText); setSegText(''); } }}>Guardar seguimiento</button>
@@ -2146,8 +2219,8 @@ function ModalAutomatizacion({ modal, onClose, auto, empleados, segAuto, user, i
             </div>
             <div className="form-group"><label className="form-label">Asignar a</label>
               <select className="form-select" value={form.asignado_id||''} onChange={e => f('asignado_id', e.target.value)}>
-                <option value="">Sin asignar</option>
-                {asignables.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                <option value="">-- Seleccionar responsable --</option>
+                {asignables.map(e => <option key={e.id} value={e.id}>{e.name}{e.email === DARWIN_EMAIL ? ' (Darwin)' : ''}</option>)}
               </select>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
@@ -2157,7 +2230,7 @@ function ModalAutomatizacion({ modal, onClose, auto, empleados, segAuto, user, i
           </div>
           <div className="modal-footer">
             <button className="btn-secondary" onClick={onClose}>Cancelar</button>
-            <button className="btn-nueva" onClick={() => { setErr(''); onAprobar(auto, form); }}>Confirmar aprobación</button>
+            <button className="btn-nueva" onClick={() => { if (!form.asignado_id) return setErr('Debes seleccionar un responsable.'); setErr(''); onAprobar(auto, form); }}>Confirmar aprobación</button>
           </div>
         </div>
       </div>
@@ -2483,6 +2556,7 @@ export default function App() {
   const closeRsModal = () => { setRsModal(null); setRsEditItem(null); setRsForm({}); setFormError(''); };
 
   const isDarwin = user?.email === DARWIN_EMAIL;
+  const isRafael = user?.email === RAFAEL_EMAIL;
   const closeAutoModal = () => { setAutoModal(null); setAutoSelected(null); };
 
   const handleNuevaAuto = async (form) => {
@@ -2768,8 +2842,8 @@ export default function App() {
         {screen === 'config' && isAdmin && <ConfigScreen employees={employees} categories={categories} onEmployeesUpdated={loadEmployees} onAssignmentsUpdated={loadAssignments} onCategoriesUpdated={loadCategories} />}
         {screen === 'config' && !isAdmin && <div className="error-msg">No tienes acceso a esta sección</div>}
         {screen === 'reconocimientos' && <ReconocimientosScreen recognitions={recognitions} employees={employees} opportunities={opportunities} categories={categories} />}
-        {screen === 'automatizaciones' && <AutomatizacionesScreen automatizaciones={automatizaciones} segAuto={segAuto} empleados={activeEmps} user={user} isDarwin={isDarwin} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenNueva={() => { setAutoSelected(null); setAutoModal('nueva'); }} onOpenVer={(a) => { setAutoSelected(a); setAutoModal('ver'); }} onOpenEditar={(a) => { setAutoSelected(a); setAutoModal('editar'); }} onAprobar={(a) => { setAutoSelected(a); setAutoModal('aprobar'); }} onRechazar={(a) => { setAutoSelected(a); setAutoModal('rechazar'); }} onFinalizar={(a) => { setAutoSelected(a); setAutoModal('finalizar'); }} onCalificar={(a) => { setAutoSelected(a); setAutoModal('ver'); }} />}
-        <ModalAutomatizacion modal={autoModal} onClose={closeAutoModal} auto={autoSelected} empleados={activeEmps} segAuto={segAuto} user={user} isDarwin={isDarwin} onGuardar={autoModal === 'nueva' ? handleNuevaAuto : handleEditarAuto} onAprobar={handleAprobarAuto} onRechazar={handleRechazarAuto} onFinalizar={handleFinalizarAuto} onCalificar={handleCalificarAuto} onAddSeguimiento={handleAddSegAuto} />
+        {screen === 'automatizaciones' && <AutomatizacionesScreen automatizaciones={automatizaciones} segAuto={segAuto} empleados={activeEmps} user={user} isDarwin={isDarwin} isRafael={isRafael} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenNueva={() => { setAutoSelected(null); setAutoModal('nueva'); }} onOpenVer={(a) => { setAutoSelected(a); setAutoModal('ver'); }} onOpenEditar={(a) => { setAutoSelected(a); setAutoModal('editar'); }} onAprobar={(a) => { setAutoSelected(a); setAutoModal('aprobar'); }} onRechazar={(a) => { setAutoSelected(a); setAutoModal('rechazar'); }} onFinalizar={(a) => { setAutoSelected(a); setAutoModal('finalizar'); }} onCalificar={(a) => { setAutoSelected(a); setAutoModal('ver'); }} />}
+        <ModalAutomatizacion modal={autoModal} onClose={closeAutoModal} auto={autoSelected} empleados={activeEmps} segAuto={segAuto} user={user} isDarwin={isDarwin} isRafael={isRafael} onGuardar={autoModal === 'nueva' ? handleNuevaAuto : handleEditarAuto} onAprobar={handleAprobarAuto} onRechazar={handleRechazarAuto} onFinalizar={handleFinalizarAuto} onCalificar={handleCalificarAuto} onAddSeguimiento={handleAddSegAuto} />
       </main>
 
       {/* MODAL: NUEVA OPORTUNIDAD */}
