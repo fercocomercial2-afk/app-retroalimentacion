@@ -28,7 +28,7 @@ const COLORS = ['#1F6FB2', '#2C8B5D', '#8A5BB0', '#C98A2B', '#D64545', '#3A8F8F'
 /* ================================================================
    ESQUEMAS DE REGISTROS SANITARIOS
    ================================================================ */
-async function uploadPdfToDrive(file) {
+async function uploadPdfToR2(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = async () => {
@@ -1952,7 +1952,7 @@ export default function App() {
     if (!file.name.toLowerCase().endsWith('.pdf')) return alert('Solo se permiten archivos PDF.');
     setUploadingPdf(item.id);
     try {
-      const url = await uploadPdfToDrive(file);
+      const url = await uploadPdfToR2(file);
       const schema = RS_SCHEMAS[tabKey];
       await supabase.from(schema.table).update({ pdf_url: url }).eq('id', item.id);
       await supabase.from('rs_audit_log').insert([{ tabla: schema.table, record_id: item.id, accion: 'EDITAR', campo: 'pdf_url', valor_nuevo: `PDF subido: ${file.name}`, usuario_email: user?.email, usuario_nombre: currentManager?.name || user?.email }]);

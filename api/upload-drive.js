@@ -1,5 +1,4 @@
-import { google } from 'googleapis';
-import { Readable } from 'stream';
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 export const config = {
   api: {
@@ -20,42 +19,29 @@ export default async function handler(req, res) {
     const { fileName, fileData, mimeType } = req.body;
     if (!fileName || !fileData) return res.status(400).json({ error: 'fileName and fileData are required' });
 
-    const auth = new google.auth.GoogleAuth({
+    const s3 = new S3Client({
+      region: 'auto',
+      endpoint: process.env.R2_ENDPOINT,
       credentials: {
-        client_email: process.env.GDRIVE_CLIENT_EMAIL,
-        private_key: process.env.GDRIVE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        accessKeyId: process.env.R2_ACCESS_KEY_ID,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
       },
-      scopes: ['https://www.googleapis.com/auth/drive.file'],
     });
-
-    const drive = google.drive({ version: 'v3', auth });
 
     const buffer = Buffer.from(fileData, 'base64');
-    const stream = Readable.from(buffer);
+    const key = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
-    const response = await drive.files.create({
-      requestBody: {
-        name: fileName,
-        parents: [process.env.GDRIVE_FOLDER_ID],
-      },
-      media: {
-        mimeType: mimeType || 'application/pdf',
-        body: stream,
-      },
-      fields: 'id,webViewLink',
-    });
+    await s3.send(new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: key,
+      Body: buffer,
+      ContentType: mimeType || 'application/pdf',
+    }));
 
-    await drive.permissions.create({
-      fileId: response.data.id,
-      requestBody: { role: 'reader', type: 'anyone' },
-    });
+    // URL pública del archivo
+    const publicUrl = `${process.env.R2_ENDPOINT}/${process.env.R2_BUCKET_NAME}/${key}`;
 
-    const file = await drive.files.get({
-      fileId: response.data.id,
-      fields: 'webViewLink',
-    });
-
-    return res.status(200).json({ success: true, url: file.data.webViewLink });
+    return res.status(200).json({ success: true, url: publicUrl });
   } catch (error) {
     console.error('Upload error:', error);
     return res.status(500).json({ error: error.message });
