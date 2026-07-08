@@ -2022,7 +2022,7 @@ function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, is
 }
 
 
-function ModalAutomatizacion({ modal, onClose, auto, empleados, segAuto, user, isDarwin, isRafael, onGuardar, onAprobar, onRechazar, onFinalizar, onCalificar, onAddSeguimiento }) {
+function ModalAutomatizacion({ modal, onClose, auto, empleados, segAuto, autoLog, user, isDarwin, isRafael, onGuardar, onAprobar, onRechazar, onFinalizar, onCalificar, onAddSeguimiento }) {
   const [form, setForm] = useState({});
   const [segText, setSegText] = useState('');
   const [starVal, setStarVal] = useState(0);
@@ -2143,6 +2143,25 @@ function ModalAutomatizacion({ modal, onClose, auto, empleados, segAuto, user, i
                 <button className="btn-nueva" style={{ marginTop:10 }} onClick={() => { if (!starVal) return setErr('Debes seleccionar una calificación.'); onCalificar(auto, starVal, comentCal); }}>Guardar calificación</button>
               </div>
             )}
+
+            {/* Historial de cambios */}
+            {(() => {
+              const logs = (autoLog || []).filter(l => l.automatizacion_id === auto?.id);
+              return logs.length > 0 ? (
+                <div style={{ borderTop:'1px solid #f0f0f0', paddingTop:14, marginTop:8 }}>
+                  <div style={{ fontWeight:700, fontSize:13, color:'#333', marginBottom:8 }}>📋 Historial de cambios</div>
+                  {logs.map((l,i) => (
+                    <div key={i} style={{ fontSize:12, color:'#777', padding:'4px 0', borderBottom:'1px solid #f5f5f5' }}>
+                      <span style={{ fontWeight:600, color:'#555' }}>{l.usuario_nombre || l.usuario_email}</span>
+                      {' · '}<span style={{ color:'#888' }}>{l.campo}</span>
+                      {l.valor_anterior && <span style={{ color:'#D64545' }}> {l.valor_anterior}</span>}
+                      {l.valor_nuevo && <span style={{ color:'#2C8B5D' }}> → {l.valor_nuevo}</span>}
+                      {' · '}<span style={{ color:'#aaa' }}>{new Date(l.created_at).toLocaleString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null;
+            })()}
           </div>
         </div>
       </div>
@@ -2214,7 +2233,7 @@ function ModalAutomatizacion({ modal, onClose, auto, empleados, segAuto, user, i
             </div>
             <div className="form-group"><label className="form-label">Estado</label>
               <select className="form-select" value={form.estado||'aprobada'} onChange={e => f('estado', e.target.value)}>
-                {['aprobada','en_revision','en_desarrollo'].map(k => <option key={k} value={k}>{AUTO_ESTADOS[k].label}</option>)}
+                {['pendiente','en_revision','aprobada','en_desarrollo','pausada'].map(k => <option key={k} value={k}>{AUTO_ESTADOS[k].label}</option>)}
               </select>
             </div>
             <div className="form-group"><label className="form-label">Asignar a</label>
@@ -2362,6 +2381,7 @@ export default function App() {
   const [recognitions, setRecognitions] = useState([]);
   const [automatizaciones, setAutomatizaciones] = useState([]);
   const [segAuto, setSegAuto] = useState([]);
+  const [autoLog, setAutoLog] = useState([]);
   const [autoModal, setAutoModal] = useState(null);
   const [autoSelected, setAutoSelected] = useState(null);
   const [recognitionModal, setRecognitionModal] = useState(false);
@@ -2474,11 +2494,15 @@ export default function App() {
     const { data } = await supabase.from('automatizaciones_seguimientos').select('*').order('created_at', { ascending: true });
     setSegAuto(data || []);
   }, []);
+  const loadAutoLog = useCallback(async () => {
+    const { data } = await supabase.from('automatizaciones_log').select('*').order('created_at', { ascending: false });
+    setAutoLog(data || []);
+  }, []);
   const loadAll = useCallback(() => {
     loadEmployees(); loadOpportunities(); loadFollowups(); loadAssignments(); loadCategories(); loadTasks();
     loadModulePermissions(); loadRsDM(); loadRsCosm(); loadRsPF(); loadRsDigesa(); loadCertDigemid();
-    loadRsAuditLog(); loadRecognitions(); loadRsPdfLog(); loadAutomatizaciones(); loadSegAuto();
-  }, [loadEmployees, loadOpportunities, loadFollowups, loadAssignments, loadCategories, loadTasks, loadModulePermissions, loadRsDM, loadRsCosm, loadRsPF, loadRsDigesa, loadCertDigemid, loadRsAuditLog, loadRecognitions, loadRsPdfLog, loadAutomatizaciones, loadSegAuto]);
+    loadRsAuditLog(); loadRecognitions(); loadRsPdfLog(); loadAutomatizaciones(); loadSegAuto(); loadAutoLog();
+  }, [loadEmployees, loadOpportunities, loadFollowups, loadAssignments, loadCategories, loadTasks, loadModulePermissions, loadRsDM, loadRsCosm, loadRsPF, loadRsDigesa, loadCertDigemid, loadRsAuditLog, loadRecognitions, loadRsPdfLog, loadAutomatizaciones, loadSegAuto, loadAutoLog]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -2559,6 +2583,14 @@ export default function App() {
   const isRafael = user?.email === RAFAEL_EMAIL;
   const closeAutoModal = () => { setAutoModal(null); setAutoSelected(null); };
 
+  const logAuto = async (autoId, campo, valorAnterior, valorNuevo) => {
+    await supabase.from('automatizaciones_log').insert([{
+      automatizacion_id: autoId, campo, valor_anterior: String(valorAnterior || ''), valor_nuevo: String(valorNuevo || ''),
+      usuario_email: user?.email, usuario_nombre: currentManager?.name || user?.email
+    }]);
+    loadAutoLog();
+  };
+
   const handleNuevaAuto = async (form) => {
     const { error } = await supabase.from('automatizaciones').insert([{
       ...form, solicitante_email: user?.email, solicitante_nombre: currentManager?.name || user?.email, estado: 'pendiente',
@@ -2568,41 +2600,71 @@ export default function App() {
   };
 
   const handleEditarAuto = async (form) => {
-    const { error } = await supabase.from('automatizaciones').update({ ...form, updated_at: new Date().toISOString() }).eq('id', autoSelected.id);
+    const prev = automatizaciones.find(a => a.id === (autoSelected?.id || form.id));
+    const changes = [];
+    if (prev) {
+      if (form.fecha_inicio !== prev.fecha_inicio) changes.push(logAuto(form.id || autoSelected?.id, 'fecha_inicio', fmtDate(prev.fecha_inicio), fmtDate(form.fecha_inicio)));
+      if (form.fecha_fin !== prev.fecha_fin) changes.push(logAuto(form.id || autoSelected?.id, 'fecha_fin', fmtDate(prev.fecha_fin), fmtDate(form.fecha_fin)));
+    }
+    const { error } = await supabase.from('automatizaciones').update({ ...form, updated_at: new Date().toISOString() }).eq('id', form.id || autoSelected?.id);
     if (error) return alert('Error al guardar: ' + error.message);
-    loadAutomatizaciones(); closeAutoModal();
+    await Promise.all(changes);
+    loadAutomatizaciones();
+    if (autoModal === 'editar') closeAutoModal();
   };
 
   const handleAprobarAuto = async (auto, form) => {
+    const cambios = [];
+    if (form.estado !== auto.estado) cambios.push(logAuto(auto.id, 'estado', AUTO_ESTADOS[auto.estado]?.label, AUTO_ESTADOS[form.estado]?.label));
+    if (form.asignado_id !== auto.asignado_id) {
+      const nuevoAsig = activeEmps.find(e => e.id === form.asignado_id);
+      cambios.push(logAuto(auto.id, 'asignado', auto.asignado_id ? activeEmps.find(e => e.id === auto.asignado_id)?.name : 'Sin asignar', nuevoAsig?.name || 'Sin asignar'));
+    }
+    if (form.fecha_inicio !== auto.fecha_inicio) cambios.push(logAuto(auto.id, 'fecha_inicio', fmtDate(auto.fecha_inicio), fmtDate(form.fecha_inicio)));
+    if (form.fecha_fin !== auto.fecha_fin) cambios.push(logAuto(auto.id, 'fecha_fin', fmtDate(auto.fecha_fin), fmtDate(form.fecha_fin)));
     const { error } = await supabase.from('automatizaciones').update({
       estado: form.estado, asignado_id: form.asignado_id || null,
       fecha_inicio: form.fecha_inicio || null, fecha_fin: form.fecha_fin || null,
       updated_at: new Date().toISOString(),
     }).eq('id', auto.id);
     if (error) return alert('Error: ' + error.message);
-    await supabase.from('automatizaciones_log').insert([{ automatizacion_id: auto.id, campo: 'estado', valor_anterior: auto.estado, valor_nuevo: form.estado, usuario_email: user?.email, usuario_nombre: currentManager?.name || user?.email }]);
+    await Promise.all(cambios);
     loadAutomatizaciones(); closeAutoModal();
   };
 
   const handleRechazarAuto = async (auto, motivo) => {
     await supabase.from('automatizaciones').update({ estado: 'rechazada', motivo_rechazo: motivo, updated_at: new Date().toISOString() }).eq('id', auto.id);
-    await supabase.from('automatizaciones_log').insert([{ automatizacion_id: auto.id, campo: 'estado', valor_anterior: auto.estado, valor_nuevo: 'rechazada', usuario_email: user?.email, usuario_nombre: currentManager?.name || user?.email }]);
+    await logAuto(auto.id, 'estado', AUTO_ESTADOS[auto.estado]?.label, 'Rechazada');
+    await logAuto(auto.id, 'motivo_rechazo', '', motivo);
     loadAutomatizaciones(); closeAutoModal();
   };
 
   const handleFinalizarAuto = async (auto) => {
     await supabase.from('automatizaciones').update({ estado: 'finalizada', updated_at: new Date().toISOString() }).eq('id', auto.id);
-    await supabase.from('automatizaciones_log').insert([{ automatizacion_id: auto.id, campo: 'estado', valor_anterior: auto.estado, valor_nuevo: 'finalizada', usuario_email: user?.email, usuario_nombre: currentManager?.name || user?.email }]);
+    await logAuto(auto.id, 'estado', AUTO_ESTADOS[auto.estado]?.label, 'Finalizada');
     loadAutomatizaciones(); closeAutoModal();
   };
 
   const handleCalificarAuto = async (auto, calificacion, comentario) => {
     await supabase.from('automatizaciones').update({ calificacion, comentario_calificacion: comentario, calificado_at: new Date().toISOString() }).eq('id', auto.id);
+    await logAuto(auto.id, 'calificacion', '', `${calificacion} estrellas${comentario ? ': ' + comentario : ''}`);
     loadAutomatizaciones(); closeAutoModal();
   };
 
   const handleAddSegAuto = async (auto, texto) => {
-    await supabase.from('automatizaciones_seguimientos').insert([{ automatizacion_id: auto.id, observacion: texto, usuario_email: user?.email, usuario_nombre: currentManager?.name || user?.email }]);
+    await supabase.from('automatizaciones_seguimientos').insert([{
+      automatizacion_id: auto.id, observacion: texto,
+      usuario_email: user?.email, usuario_nombre: currentManager?.name || user?.email
+    }]);
+    // Si la automatización está aprobada y este es el primer seguimiento → pasar a EN DESARROLLO
+    if (auto.estado === 'aprobada') {
+      const segsExistentes = segAuto.filter(s => s.automatizacion_id === auto.id);
+      if (segsExistentes.length === 0) {
+        await supabase.from('automatizaciones').update({ estado: 'en_desarrollo', updated_at: new Date().toISOString() }).eq('id', auto.id);
+        await logAuto(auto.id, 'estado', 'Aprobada', 'En desarrollo (primer seguimiento agregado)');
+        loadAutomatizaciones();
+      }
+    }
     loadSegAuto();
   };
 
@@ -2843,7 +2905,7 @@ export default function App() {
         {screen === 'config' && !isAdmin && <div className="error-msg">No tienes acceso a esta sección</div>}
         {screen === 'reconocimientos' && <ReconocimientosScreen recognitions={recognitions} employees={employees} opportunities={opportunities} categories={categories} />}
         {screen === 'automatizaciones' && <AutomatizacionesScreen automatizaciones={automatizaciones} segAuto={segAuto} empleados={activeEmps} user={user} isDarwin={isDarwin} isRafael={isRafael} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenNueva={() => { setAutoSelected(null); setAutoModal('nueva'); }} onOpenVer={(a) => { setAutoSelected(a); setAutoModal('ver'); }} onOpenEditar={(a) => { setAutoSelected(a); setAutoModal('editar'); }} onAprobar={(a) => { setAutoSelected(a); setAutoModal('aprobar'); }} onRechazar={(a) => { setAutoSelected(a); setAutoModal('rechazar'); }} onFinalizar={(a) => { setAutoSelected(a); setAutoModal('finalizar'); }} onCalificar={(a) => { setAutoSelected(a); setAutoModal('ver'); }} />}
-        <ModalAutomatizacion modal={autoModal} onClose={closeAutoModal} auto={autoSelected} empleados={activeEmps} segAuto={segAuto} user={user} isDarwin={isDarwin} isRafael={isRafael} onGuardar={autoModal === 'nueva' ? handleNuevaAuto : handleEditarAuto} onAprobar={handleAprobarAuto} onRechazar={handleRechazarAuto} onFinalizar={handleFinalizarAuto} onCalificar={handleCalificarAuto} onAddSeguimiento={handleAddSegAuto} />
+        <ModalAutomatizacion modal={autoModal} onClose={closeAutoModal} auto={autoSelected} empleados={activeEmps} segAuto={segAuto} autoLog={autoLog} user={user} isDarwin={isDarwin} isRafael={isRafael} onGuardar={autoModal === 'nueva' ? handleNuevaAuto : handleEditarAuto} onAprobar={handleAprobarAuto} onRechazar={handleRechazarAuto} onFinalizar={handleFinalizarAuto} onCalificar={handleCalificarAuto} onAddSeguimiento={handleAddSegAuto} />
       </main>
 
       {/* MODAL: NUEVA OPORTUNIDAD */}
