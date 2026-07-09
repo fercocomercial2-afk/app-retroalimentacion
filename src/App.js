@@ -263,11 +263,11 @@ function Sidebar({ user, screen, setScreen, isAdmin, onLogout, managerName, noti
     items = [
       { id: 'dashboard', icon: '📊', label: 'Dashboard' },
       { id: 'trabajadores', icon: '👥', label: 'Mis Trabajadores' },
-      { id: 'historial', icon: '🕐', label: 'Historial' },
+      { id: 'mis-tareas', icon: '✅', label: 'Mis Tareas' },
       { id: 'notificaciones', icon: '🔔', label: 'Notificaciones' },
     ];
     if (hasRegistrosAccess) items.push({ id: 'registros', icon: '🧪', label: 'Registros' });
-    items.push({ id: 'automatizaciones', icon: '⚡', label: 'Automatizaciones' });
+    items.push({ id: 'automatizaciones', icon: '🔧', label: 'Mejora Continua' });
     items.push({ id: 'reconocimientos', icon: '🏆', label: 'Reconocimientos' });
     if (isAdmin) items.push({ id: 'config', icon: '⚙️', label: 'Configuración' });
   }
@@ -570,16 +570,20 @@ function OppProgressBar({ pct }) {
 /* ================================================================
    MIS TRABAJADORES (+ Vista "Todos" para admins)
    ================================================================ */
-function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportunities, followups, categories, tasks, onOpenNueva, onOpenSeguimiento, onOpenLograr, onOpenEliminar, onOpenEditarOpp, onOpenNuevaTask, onOpenSeguimientoTask, onOpenLograrTask, onOpenEliminarTask, onOpenEditarTask, onOpenEditarFollowup, selectedWorkerId, setSelectedWorkerId, expandedOpps, toggleOpp, expandedTasks, toggleTask, isAdmin, adminView, setAdminView }) {
-  const [segFilter, setSegFilter] = useState('all'); // 'all', 'con', 'sin' (solo en vista "todos")
+function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportunities, followups, categories, tasks, onOpenNueva, onOpenSeguimiento, onOpenLograr, onOpenEliminar, onOpenEditarOpp, onOpenNuevaTask, onOpenSeguimientoTask, onOpenLograrTask, onOpenEliminarTask, onOpenEditarTask, onOpenEditarFollowup, selectedWorkerId, setSelectedWorkerId, expandedOpps, toggleOpp, expandedTasks, toggleTask, isAdmin, adminView, setAdminView, onOpenDetalle }) {
+  const [segFilter, setSegFilter] = useState('all');
   const [catFilter, setCatFilter] = useState('all');
+  const [statusTab, setStatusTab] = useState('proceso'); // 'proceso' | 'finalizado'
 
   const emps = adminView === 'all' ? allEmployees : myReports;
   const opps = adminView === 'all' ? allOpportunities : opportunities;
-  const activeOpps = opps.filter(o => o.status === 'proceso');
-  const filteredOpps = catFilter === 'all' ? activeOpps : activeOpps.filter(o => o.category_id === catFilter);
 
-  // Filtro de seguimiento (solo vista "todos")
+  const activeOpps = opps.filter(o => o.status === 'proceso');
+  const closedOpps = opps.filter(o => o.status === 'logrado');
+
+  const currentOpps = statusTab === 'proceso' ? activeOpps : closedOpps;
+  const filteredOpps = catFilter === 'all' ? currentOpps : currentOpps.filter(o => o.category_id === catFilter);
+
   const filteredEmps = adminView === 'all' && segFilter !== 'all'
     ? emps.filter(e => {
         const hasOpp = filteredOpps.some(o => o.employee_id === e.id);
@@ -587,7 +591,6 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
       })
     : emps;
 
-  // Selección activa: si no hay ninguna o ya no es válida, usar el primero de la lista
   const selectedEmp = filteredEmps.find(e => e.id === selectedWorkerId) || filteredEmps[0] || null;
   const empOpps = selectedEmp ? filteredOpps.filter(o => o.employee_id === selectedEmp.id) : [];
   const selIdx = selectedEmp ? filteredEmps.findIndex(e => e.id === selectedEmp.id) : -1;
@@ -595,7 +598,17 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
   return (
     <div>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div><h1 className="page-title">Mis Trabajadores</h1><p className="page-subtitle">{adminView === 'all' ? 'Vista general de todos los trabajadores' : 'Seguimientos en proceso'}</p></div>
+        <div><h1 className="page-title">Mis Trabajadores</h1><p className="page-subtitle">{adminView === 'all' ? 'Vista general de todos los trabajadores' : 'Seguimientos'}</p></div>
+      </div>
+
+      {/* Tabs En Proceso / Finalizadas */}
+      <div className="tabs" style={{ marginBottom: 16 }}>
+        <button className={`tab ${statusTab === 'proceso' ? 'active' : ''}`} onClick={() => { setStatusTab('proceso'); setSelectedWorkerId(null); }}>
+          En proceso <span style={{ marginLeft:4, background: statusTab === 'proceso' ? 'rgba(255,255,255,0.3)' : '#e0e0e0', borderRadius:10, padding:'1px 7px', fontSize:11, fontWeight:700 }}>{activeOpps.length}</span>
+        </button>
+        <button className={`tab ${statusTab === 'finalizado' ? 'active' : ''}`} onClick={() => { setStatusTab('finalizado'); setSelectedWorkerId(null); }}>
+          Finalizadas <span style={{ marginLeft:4, background: statusTab === 'finalizado' ? 'rgba(255,255,255,0.3)' : '#e0e0e0', borderRadius:10, padding:'1px 7px', fontSize:11, fontWeight:700 }}>{closedOpps.length}</span>
+        </button>
       </div>
 
       <AdminViewToggle view={adminView} setView={setAdminView} isAdmin={isAdmin} />
@@ -667,7 +680,7 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                 <div style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>{empOpps.length} oportunidad{empOpps.length !== 1 ? 'es' : ''} en proceso</div>
 
                 {empOpps.length === 0 ? (
-                  <div className="empty-state">Sin oportunidades activas</div>
+                  <div className="empty-state">{statusTab === 'proceso' ? 'Sin oportunidades activas' : 'Sin oportunidades finalizadas'}</div>
                 ) : (
                   <div className="worker-card" style={{ boxShadow: 'none' }}>
                     <div className="worker-opps" style={{ borderTop: 'none' }}>
@@ -863,6 +876,147 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
 /* ================================================================
    HISTORIAL
    ================================================================ */
+/* ================================================================
+   MIS TAREAS
+   ================================================================ */
+function MisTareasScreen({ user, allEmployees, opportunities, allOpportunities, followups, tasks, categories, isAdmin, adminView, setAdminView, onOpenSeguimiento, onOpenLograr, onOpenSeguimientoTask, onOpenLograrTask, expandedOpps, toggleOpp, expandedTasks, toggleTask, onOpenEditarFollowup }) {
+  const [statusTab, setStatusTab] = useState('proceso');
+  const [catFilter, setCatFilter] = useState('all');
+
+  const me = allEmployees.find(e => e.email === user?.email);
+  const opps = adminView === 'all' ? allOpportunities : opportunities;
+
+  // Mis proyectos asignados = oportunidades donde el colaborador soy yo
+  const misOpps = me ? opps.filter(o => o.employee_id === me.id) : [];
+  const activeOpps = misOpps.filter(o => o.status === 'proceso');
+  const closedOpps = misOpps.filter(o => o.status === 'logrado');
+  const currentOpps = statusTab === 'proceso' ? activeOpps : closedOpps;
+  const filteredOpps = catFilter === 'all' ? currentOpps : currentOpps.filter(o => o.category_id === catFilter);
+
+  return (
+    <div>
+      <div className="page-header">
+        <h1 className="page-title">Mis Tareas</h1>
+        <p className="page-subtitle">Proyectos y oportunidades asignados a mí</p>
+      </div>
+
+      <div className="tabs" style={{ marginBottom: 16 }}>
+        <button className={`tab ${statusTab === 'proceso' ? 'active' : ''}`} onClick={() => setStatusTab('proceso')}>
+          En proceso <span style={{ marginLeft:4, background: statusTab === 'proceso' ? 'rgba(255,255,255,0.3)' : '#e0e0e0', borderRadius:10, padding:'1px 7px', fontSize:11, fontWeight:700 }}>{activeOpps.length}</span>
+        </button>
+        <button className={`tab ${statusTab === 'finalizado' ? 'active' : ''}`} onClick={() => setStatusTab('finalizado')}>
+          Finalizadas <span style={{ marginLeft:4, background: statusTab === 'finalizado' ? 'rgba(255,255,255,0.3)' : '#e0e0e0', borderRadius:10, padding:'1px 7px', fontSize:11, fontWeight:700 }}>{closedOpps.length}</span>
+        </button>
+      </div>
+
+      {categories.length > 0 && (
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
+          <span style={{ fontSize:13, color:'#888' }}>Categoría:</span>
+          <select className="form-select" style={{ width:'auto', padding:'6px 12px', fontSize:13 }} value={catFilter} onChange={e => setCatFilter(e.target.value)}>
+            <option value="all">Todas</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      )}
+
+      <div style={{ fontSize:13, color:'#888', marginBottom:16 }}>{filteredOpps.length} {statusTab === 'proceso' ? 'en proceso' : 'finalizada'}{filteredOpps.length !== 1 ? 's' : ''}</div>
+
+      {filteredOpps.length === 0 ? (
+        <div className="empty-state">{me ? `No tienes ${statusTab === 'proceso' ? 'proyectos en proceso' : 'proyectos finalizados'}.` : 'No se encontró tu perfil de empleado.'}</div>
+      ) : (
+        <div className="hist-list">
+          {filteredOpps.map(opp => {
+            const cat = categories.find(c => c.id === opp.category_id);
+            const isProyecto = cat?.name === 'Proyectos';
+            const oppFollowups = followups.filter(f => f.opportunity_id === opp.id);
+            const oppTasks = isProyecto ? tasks.filter(t => t.opportunity_id === opp.id) : [];
+            const tasksLogradas = oppTasks.filter(t => t.status === 'logrado').length;
+            const isExpanded = expandedOpps[opp.id];
+            const today0 = new Date(); today0.setHours(0,0,0,0);
+            const progressPct = oppProgress(opp, isProyecto, oppTasks, oppFollowups);
+
+            return (
+              <div key={opp.id} className="hist-card" style={{ cursor:'default' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10 }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                      {cat && <span className="cat-badge" style={{ background:cat.color+'20', color:cat.color, borderLeft:`3px solid ${cat.color}` }}>{cat.name}</span>}
+                      <span className="hist-desc" style={{ margin:0 }}>{opp.title || opp.description}</span>
+                      {opp.due_date && (() => {
+                        const due = new Date(opp.due_date); due.setHours(0,0,0,0);
+                        const diff = Math.round((due - today0) / 86400000);
+                        const color = diff < 0 ? '#D64545' : diff <= 3 ? '#C98A2B' : '#2C8B5D';
+                        return <span style={{ fontSize:11, fontWeight:700, color, background:color+'18', padding:'2px 7px', borderRadius:8 }}>📅 {fmtDate(opp.due_date)}</span>;
+                      })()}
+                    </div>
+                    <div className="hist-meta">
+                      Creada {fmtDate(opp.created_at)}
+                      {statusTab === 'finalizado' && opp.closed_at && <span> · Cerrada {fmtDate(opp.closed_at)}</span>}
+                      {isProyecto && <span> · {tasksLogradas}/{oppTasks.length} tareas</span>}
+                      {oppFollowups.length > 0 && <span> · {oppFollowups.length} seguimiento{oppFollowups.length > 1 ? 's' : ''}</span>}
+                    </div>
+                    <OppProgressBar pct={progressPct} />
+                  </div>
+                  <button className="followup-toggle" onClick={() => toggleOpp(opp.id)}>{isExpanded ? 'Ver menos' : 'Ver más'}</button>
+                </div>
+
+                {isExpanded && (
+                  <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid #f0f0f0' }}>
+                    {statusTab === 'finalizado' && opp.final_observation && (
+                      <div style={{ background:'#e6f5ec', padding:'8px 12px', borderRadius:8, fontSize:13, color:'#15362C', marginBottom:10 }}>
+                        <strong>Observación final:</strong> {opp.final_observation}
+                      </div>
+                    )}
+                    {oppFollowups.length > 0 && (
+                      <div className="followup-list">
+                        {oppFollowups.map(fu => (
+                          <div key={fu.id} className="followup-item">
+                            <div className="followup-date">{fmtDate(fu.created_at)}</div>
+                            <div className="followup-text"><RatingBadge value={fu.rating} /><ExpandableText text={fu.observation} limit={200} /></div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {isProyecto && oppTasks.length > 0 && (
+                      <div className="tasks-section" style={{ marginTop:10 }}>
+                        <div className="tasks-section-title">TAREAS ({tasksLogradas} de {oppTasks.length})</div>
+                        {oppTasks.map(task => {
+                          const taskFollowups = followups.filter(f => f.task_id === task.id);
+                          return (
+                            <div key={task.id} className={`task-card ${task.status === 'logrado' ? 'task-done' : ''}`}>
+                              <div className="task-header">
+                                <span className="task-check">{task.status === 'logrado' ? '☑' : '☐'}</span>
+                                <div style={{ flex:1 }}>
+                                  <div className="task-title">{task.title}</div>
+                                  <div className="task-meta">
+                                    {task.due_date && <span>Vence: {fmtDate(task.due_date)}</span>}
+                                    {task.rating && <span> · <StarDisplay value={task.rating} /></span>}
+                                    {taskFollowups.length > 0 && <span> · <button className="followup-toggle" style={{ display:'inline', padding:0 }} onClick={() => toggleTask(task.id)}>{expandedTasks[task.id] ? 'Ocultar' : `${taskFollowups.length} seg.`}</button></span>}
+                                  </div>
+                                </div>
+                              </div>
+                              {expandedTasks[task.id] && taskFollowups.map(fu => (
+                                <div key={fu.id} className="followup-item" style={{ marginLeft:26 }}>
+                                  <div className="followup-date">{fmtDate(fu.created_at)}</div>
+                                  <div className="followup-text"><RatingBadge value={fu.rating} /><ExpandableText text={fu.observation} limit={200} /></div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HistorialScreen({ myReports, allEmployees, opportunities, allOpportunities, followups, categories, onOpenDetalle, isAdmin, adminView, setAdminView }) {
   const [workerFilter, setWorkerFilter] = useState('all');
   const [catFilter, setCatFilter] = useState('all');
@@ -1927,7 +2081,7 @@ function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, is
       <div>
         <div className="page-header" style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
           <div>
-            <h1 className="page-title">Automatizaciones</h1>
+            <h1 className="page-title">Mejora Continua</h1>
             <p className="page-subtitle">Gestión de solicitudes de mejora y automatización</p>
           </div>
           <button className="btn-nueva" onClick={onOpenNueva}>
@@ -1968,6 +2122,7 @@ function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, is
 
   /* ---------- VISTA RAFAEL (ve todo, no aprueba) ---------- */
   if (isRafael) {
+    const [filtroPersona, setFiltroPersona] = useState('all');
     const rafaelTabs = [
       { key: 'solicitudes', label: 'Solicitudes', estados: ['pendiente','en_revision','aprobada'] },
       { key: 'seguimientos', label: 'Seguimientos', estados: ['en_desarrollo','pausada'] },
@@ -1975,20 +2130,30 @@ function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, is
       { key: 'rechazadas', label: 'Rechazadas', estados: ['rechazada'] },
     ];
     const currentTabR = rafaelTabs.find(t => t.key === tabUser);
-    const rafaelFiltered = automatizaciones.filter(a => currentTabR?.estados.includes(a.estado));
+    let rafaelFiltered = automatizaciones.filter(a => currentTabR?.estados.includes(a.estado));
+    if (filtroPersona !== 'all') rafaelFiltered = rafaelFiltered.filter(a => a.solicitante_email === filtroPersona);
+
+    const solicitantes = [...new Map(automatizaciones.map(a => [a.solicitante_email, a.solicitante_nombre])).entries()];
 
     return (
       <div>
         <div className="page-header" style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-          <div><h1 className="page-title">Automatizaciones</h1><p className="page-subtitle">Vista general de todas las solicitudes</p></div>
+          <div><h1 className="page-title">Mejora Continua</h1><p className="page-subtitle">Vista general de todas las solicitudes</p></div>
           <button className="btn-nueva" onClick={onOpenNueva}>
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><line x1="9" y1="4" x2="9" y2="14"/><line x1="4" y1="9" x2="14" y2="9"/></svg>
             Nueva solicitud
           </button>
         </div>
+        <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center' }}>
+          <span style={{ fontSize:13, color:'#888' }}>Filtrar por persona:</span>
+          <select className="form-select" style={{ width:'auto', padding:'6px 12px', fontSize:13 }} value={filtroPersona} onChange={e => setFiltroPersona(e.target.value)}>
+            <option value="all">Todas las personas</option>
+            {solicitantes.map(([email, nombre]) => <option key={email} value={email}>{nombre}</option>)}
+          </select>
+        </div>
         <div className="tabs" style={{ marginBottom:16 }}>
           {rafaelTabs.map(t => {
-            const count = automatizaciones.filter(a => t.estados.includes(a.estado)).length;
+            const count = automatizaciones.filter(a => t.estados.includes(a.estado) && (filtroPersona === 'all' || a.solicitante_email === filtroPersona)).length;
             return (
               <button key={t.key} className={`tab ${tabUser === t.key ? 'active' : ''}`} onClick={() => setTabUser(t.key)}>
                 {t.label} {count > 0 && <span style={{ marginLeft:4, background: tabUser === t.key ? 'rgba(255,255,255,0.3)' : '#e0e0e0', borderRadius:10, padding:'1px 7px', fontSize:11, fontWeight:700 }}>{count}</span>}
@@ -2024,7 +2189,7 @@ function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, is
     <div>
       <div className="page-header" style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
         <div>
-          <h1 className="page-title">Automatizaciones</h1>
+          <h1 className="page-title">Mejora Continua</h1>
           <p className="page-subtitle">Mis solicitudes de mejora y automatización</p>
         </div>
         <button className="btn-nueva" onClick={onOpenNueva}>
@@ -2148,6 +2313,15 @@ function ModalAutomatizacion({ modal, onClose, auto, empleados, segAuto, autoLog
                   <div style={{ fontWeight:700, fontSize:13, color:'#C98A2B', marginBottom:4 }}>⭐ Calificación del solicitante</div>
                   <div style={{ fontSize:20 }}>{'★'.repeat(auto.calificacion)}{'☆'.repeat(5-auto.calificacion)}</div>
                   {auto.comentario_calificacion && <p style={{ fontSize:13, color:'#555', margin:'6px 0 0' }}>{auto.comentario_calificacion}</p>}
+                </div>
+              )}
+              {auto?.estado === 'finalizada' && (
+                <div style={{ background:'#f0f7f4', padding:'10px 14px', borderRadius:8, border:'1px solid #2C8B5D', display:'grid', gap:6 }}>
+                  <div style={{ fontWeight:700, fontSize:13, color:'#15362C', marginBottom:2 }}>📋 Resumen de la automatización</div>
+                  {auto.updated_at && <div style={{ fontSize:13, color:'#555' }}>✅ <strong>Fecha de aprobación:</strong> {fmtDate(auto.updated_at)}</div>}
+                  {auto.fecha_inicio && <div style={{ fontSize:13, color:'#555' }}>🚀 <strong>Fecha de inicio:</strong> {fmtDate(auto.fecha_inicio)}</div>}
+                  {auto.fecha_fin && <div style={{ fontSize:13, color:'#555' }}>🏁 <strong>Fecha de entrega:</strong> {fmtDate(auto.fecha_fin)}</div>}
+                  {auto.calificado_at && <div style={{ fontSize:13, color:'#555' }}>⭐ <strong>Calificada:</strong> {fmtDate(auto.calificado_at)}</div>}
                 </div>
               )}
             </div>
@@ -2935,7 +3109,8 @@ export default function App() {
       <Sidebar user={user} screen={screen} setScreen={(s) => { setScreen(s); if (s === 'trabajadores') setSelectedWorkerId(null); }} isAdmin={isAdmin} onLogout={handleLogout} managerName={currentManager?.name} notifCount={myNotifs.length + rsUrgentCount} hasRegistrosAccess={hasRegistrosAccess} isRegistrosOnly={isRegistrosOnly} />
       <main className="main-content">
         {!isRegistrosOnly && screen === 'dashboard' && <DashboardScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} categories={categories} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
-        {!isRegistrosOnly && screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} tasks={tasks} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenEliminar={openEliminar} onOpenEditarOpp={openEditarOpp} onOpenNuevaTask={openNuevaTask} onOpenSeguimientoTask={openSeguimientoTask} onOpenLograrTask={openLograrTask} onOpenEliminarTask={openEliminarTask} onOpenEditarTask={openEditarTask} onOpenEditarFollowup={openEditarFollowup} selectedWorkerId={selectedWorkerId} setSelectedWorkerId={setSelectedWorkerId} expandedOpps={expandedOpps} toggleOpp={toggleOpp} expandedTasks={expandedTasks} toggleTask={toggleTask} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
+        {!isRegistrosOnly && screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} tasks={tasks} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenEliminar={openEliminar} onOpenEditarOpp={openEditarOpp} onOpenNuevaTask={openNuevaTask} onOpenSeguimientoTask={openSeguimientoTask} onOpenLograrTask={openLograrTask} onOpenEliminarTask={openEliminarTask} onOpenEditarTask={openEditarTask} onOpenEditarFollowup={openEditarFollowup} selectedWorkerId={selectedWorkerId} setSelectedWorkerId={setSelectedWorkerId} expandedOpps={expandedOpps} toggleOpp={toggleOpp} expandedTasks={expandedTasks} toggleTask={toggleTask} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenDetalle={openDetalle} />}
+        {!isRegistrosOnly && screen === 'mis-tareas' && <MisTareasScreen user={user} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} tasks={tasks} categories={categories} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenSeguimientoTask={openSeguimientoTask} onOpenLograrTask={openLograrTask} expandedOpps={expandedOpps} toggleOpp={toggleOpp} expandedTasks={expandedTasks} toggleTask={toggleTask} onOpenEditarFollowup={openEditarFollowup} />}
         {!isRegistrosOnly && screen === 'historial' && <HistorialScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenDetalle={openDetalle} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {screen === 'notificaciones' && <NotificacionesScreen myTasks={myTasksList} myOpportunities={myOpportunities} allTasks={allTasksList} allOpportunities={allOpportunities} myFollowups={myFollowupsList} allFollowups={allFollowupsList} allEmployees={activeEmps} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenInTrabajadores={goToTaskInTrabajadores} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} hasRegistrosAccess={hasRegistrosAccess} onOpenInRegistros={(tab) => { setScreen('registros'); setRsTab(tab); }} />}
         {screen === 'registros' && hasRegistrosAccess && <RegistrosSanitariosScreen rsTab={rsTab} setRsTab={setRsTab} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} canEdit={canEditRegistros} onOpenNuevo={openRsNuevo} onOpenEditar={openRsEditar} onOpenEliminar={openRsEliminar} rsAuditLog={rsAuditLog} rsPdfLog={rsPdfLog} onUploadPdf={handleUploadPdf} onDeletePdf={handleDeletePdf} uploadingPdf={uploadingPdf} />}
