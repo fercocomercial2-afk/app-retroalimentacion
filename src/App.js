@@ -2005,6 +2005,7 @@ function StarRatingAuto({ value, onChange }) {
 function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, isDarwin, isRafael, onOpenNueva, onOpenVer, onOpenEditar, onAprobar, onRechazar, onFinalizar, onCalificar, adminView, setAdminView, isAdmin }) {
   const [tabDarwin, setTabDarwin] = useState('solicitudes');
   const [tabUser, setTabUser] = useState('solicitudes');
+  const [filtroPersona, setFiltroPersona] = useState('all');
 
   const renderCard = (auto, opts = {}) => {
     const asignado = empleados.find(e => e.id === auto.asignado_id);
@@ -2122,7 +2123,6 @@ function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, is
 
   /* ---------- VISTA RAFAEL (ve todo, no aprueba) ---------- */
   if (isRafael) {
-    const [filtroPersona, setFiltroPersona] = useState('all');
     const rafaelTabs = [
       { key: 'solicitudes', label: 'Solicitudes', estados: ['pendiente','en_revision','aprobada'] },
       { key: 'seguimientos', label: 'Seguimientos', estados: ['en_desarrollo','pausada'] },
