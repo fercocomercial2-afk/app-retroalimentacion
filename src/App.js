@@ -879,15 +879,14 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
 /* ================================================================
    MIS TAREAS
    ================================================================ */
-function MisTareasScreen({ user, allEmployees, opportunities, allOpportunities, followups, tasks, categories, isAdmin, adminView, setAdminView, onOpenSeguimiento, onOpenLograr, onOpenSeguimientoTask, onOpenLograrTask, expandedOpps, toggleOpp, expandedTasks, toggleTask, onOpenEditarFollowup }) {
+function MisTareasScreen({ user, allEmployees, allOpportunities, followups, tasks, categories, expandedOpps, toggleOpp, expandedTasks, toggleTask, onOpenEditarFollowup }) {
   const [statusTab, setStatusTab] = useState('proceso');
   const [catFilter, setCatFilter] = useState('all');
 
   const me = allEmployees.find(e => e.email === user?.email);
-  const opps = adminView === 'all' ? allOpportunities : opportunities;
 
-  // Mis proyectos asignados = oportunidades donde el colaborador soy yo
-  const misOpps = me ? opps.filter(o => o.employee_id === me.id) : [];
+  // Todas las oportunidades donde soy el colaborador asignado
+  const misOpps = me ? allOpportunities.filter(o => o.employee_id === me.id) : [];
   const activeOpps = misOpps.filter(o => o.status === 'proceso');
   const closedOpps = misOpps.filter(o => o.status === 'logrado');
   const currentOpps = statusTab === 'proceso' ? activeOpps : closedOpps;
@@ -3110,7 +3109,7 @@ export default function App() {
       <main className="main-content">
         {!isRegistrosOnly && screen === 'dashboard' && <DashboardScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} categories={categories} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {!isRegistrosOnly && screen === 'trabajadores' && <TrabajadoresScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} tasks={tasks} onOpenNueva={openNueva} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenEliminar={openEliminar} onOpenEditarOpp={openEditarOpp} onOpenNuevaTask={openNuevaTask} onOpenSeguimientoTask={openSeguimientoTask} onOpenLograrTask={openLograrTask} onOpenEliminarTask={openEliminarTask} onOpenEditarTask={openEditarTask} onOpenEditarFollowup={openEditarFollowup} selectedWorkerId={selectedWorkerId} setSelectedWorkerId={setSelectedWorkerId} expandedOpps={expandedOpps} toggleOpp={toggleOpp} expandedTasks={expandedTasks} toggleTask={toggleTask} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenDetalle={openDetalle} />}
-        {!isRegistrosOnly && screen === 'mis-tareas' && <MisTareasScreen user={user} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} tasks={tasks} categories={categories} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenSeguimiento={openSeguimiento} onOpenLograr={openLograr} onOpenSeguimientoTask={openSeguimientoTask} onOpenLograrTask={openLograrTask} expandedOpps={expandedOpps} toggleOpp={toggleOpp} expandedTasks={expandedTasks} toggleTask={toggleTask} onOpenEditarFollowup={openEditarFollowup} />}
+        {!isRegistrosOnly && screen === 'mis-tareas' && <MisTareasScreen user={user} allEmployees={activeEmps} allOpportunities={opportunities} followups={followups} tasks={tasks} categories={categories} expandedOpps={expandedOpps} toggleOpp={toggleOpp} expandedTasks={expandedTasks} toggleTask={toggleTask} onOpenEditarFollowup={openEditarFollowup} />}
         {!isRegistrosOnly && screen === 'historial' && <HistorialScreen myReports={myDirectReports} allEmployees={activeEmps} opportunities={myOpportunities} allOpportunities={allOpportunities} followups={followups} categories={categories} onOpenDetalle={openDetalle} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} />}
         {screen === 'notificaciones' && <NotificacionesScreen myTasks={myTasksList} myOpportunities={myOpportunities} allTasks={allTasksList} allOpportunities={allOpportunities} myFollowups={myFollowupsList} allFollowups={allFollowupsList} allEmployees={activeEmps} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenInTrabajadores={goToTaskInTrabajadores} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} hasRegistrosAccess={hasRegistrosAccess} onOpenInRegistros={(tab) => { setScreen('registros'); setRsTab(tab); }} />}
         {screen === 'registros' && hasRegistrosAccess && <RegistrosSanitariosScreen rsTab={rsTab} setRsTab={setRsTab} rsDM={rsDM} rsCosm={rsCosm} rsPF={rsPF} rsDigesa={rsDigesa} certDigemid={certDigemid} canEdit={canEditRegistros} onOpenNuevo={openRsNuevo} onOpenEditar={openRsEditar} onOpenEliminar={openRsEliminar} rsAuditLog={rsAuditLog} rsPdfLog={rsPdfLog} onUploadPdf={handleUploadPdf} onDeletePdf={handleDeletePdf} uploadingPdf={uploadingPdf} />}
