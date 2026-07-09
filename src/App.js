@@ -686,6 +686,7 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                         const hasAlert = isProyecto && oppTasks.some(t => {
                           if (t.status !== 'pendiente' || !t.due_date) return false;
                           const due = new Date(typeof t.due_date === 'string' && t.due_date.length === 10 ? t.due_date + 'T00:00:00' : t.due_date);
+                          due.setHours(0, 0, 0, 0);
                           return due <= today0;
                         });
                         const progressPct = oppProgress(opp, isProyecto, oppTasks, oppFollowups);
@@ -786,6 +787,7 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                               const isPendiente = task.status === 'pendiente';
                               const today = new Date(); today.setHours(0, 0, 0, 0);
                               const due = task.due_date ? new Date(typeof task.due_date === 'string' && task.due_date.length === 10 ? task.due_date + 'T00:00:00' : task.due_date) : null;
+                              if (due) due.setHours(0, 0, 0, 0);
                               const isVencida = isPendiente && due && due < today;
                               const isHoy = isPendiente && due && due.getTime() === today.getTime();
 
@@ -939,9 +941,11 @@ function getNotifications(tasks, opportunities, followups, allEmployees) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const list = [];
   const jefeOf = (emp) => emp ? allEmployees.find(e => e.buk_employee_id === emp.manager_id) : null;
+  // Trunca cualquier fecha a medianoche local para comparar solo días
+  const toDay = (d) => { const dt = new Date(typeof d === 'string' && d.length === 10 ? d + 'T00:00:00' : d); dt.setHours(0,0,0,0); return dt; };
 
   tasks.filter(t => t.status === 'pendiente' && t.due_date).forEach(t => {
-    const due = new Date(typeof t.due_date === 'string' && t.due_date.length === 10 ? t.due_date + 'T00:00:00' : t.due_date);
+    const due = toDay(t.due_date);
     const opp = opportunities.find(o => o.id === t.opportunity_id);
     if (!opp) return;
     const emp = allEmployees.find(e => e.id === opp.employee_id);
@@ -952,7 +956,7 @@ function getNotifications(tasks, opportunities, followups, allEmployees) {
   });
 
   opportunities.filter(o => o.status === 'proceso' && o.due_date).forEach(o => {
-    const due = new Date(typeof o.due_date === 'string' && o.due_date.length === 10 ? o.due_date + 'T00:00:00' : o.due_date);
+    const due = toDay(o.due_date);
     const emp = allEmployees.find(e => e.id === o.employee_id);
     const diffDays = Math.round((due - today) / 86400000);
     if (diffDays <= 0) {
@@ -961,7 +965,7 @@ function getNotifications(tasks, opportunities, followups, allEmployees) {
   });
 
   followups.filter(f => f.due_date).forEach(f => {
-    const due = new Date(typeof f.due_date === 'string' && f.due_date.length === 10 ? f.due_date + 'T00:00:00' : f.due_date);
+    const due = toDay(f.due_date);
     const diffDays = Math.round((due - today) / 86400000);
     if (diffDays > 0) return;
     let opp = null, task = null;
