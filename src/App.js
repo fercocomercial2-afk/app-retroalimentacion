@@ -2006,10 +2006,34 @@ function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, is
   const [tabUser, setTabUser] = useState('solicitudes');
   const [filtroPersona, setFiltroPersona] = useState('all');
 
+  const diasLaborables = (desde, hasta) => {
+    if (!desde) return null;
+    const d1 = new Date(typeof desde === 'string' && desde.length === 10 ? desde + 'T00:00:00' : desde);
+    const d2 = hasta ? new Date(typeof hasta === 'string' && hasta.length === 10 ? hasta + 'T00:00:00' : hasta) : new Date();
+    d1.setHours(0,0,0,0); d2.setHours(0,0,0,0);
+    let dias = 0;
+    const cur = new Date(d1);
+    while (cur <= d2) {
+      const dow = cur.getDay();
+      if (dow !== 0 && dow !== 6) dias++;
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dias;
+  };
+
   const renderCard = (auto, opts = {}) => {
     const asignado = empleados.find(e => e.id === auto.asignado_id);
+    const asignado2 = auto.asignado_id_2 ? empleados.find(e => e.id === auto.asignado_id_2) : null;
     const esMio = auto.solicitante_email === user?.email;
     const puedeCalificar = esMio && auto.estado === 'finalizada' && !auto.calificacion;
+    const esActivo = ['en_desarrollo','pausada','aprobada'].includes(auto.estado);
+    const esFinalizada = auto.estado === 'finalizada';
+    const duracion = (() => {
+      const desde = auto.fecha_inicio || auto.created_at;
+      if (esActivo) return diasLaborables(desde, null);
+      if (esFinalizada && auto.fecha_fin) return diasLaborables(desde, auto.fecha_fin);
+      return null;
+    })();
     return (
       <div key={auto.id} className="hist-card" style={{ cursor:'pointer', borderLeft:`4px solid ${AUTO_ESTADOS[auto.estado]?.color || '#ddd'}` }} onClick={() => onOpenVer(auto)}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10 }}>
@@ -2018,13 +2042,26 @@ function AutomatizacionesScreen({ automatizaciones, segAuto, empleados, user, is
               <span className="hist-desc" style={{ margin:0 }}>{auto.titulo}</span>
               {!opts.hideEstado && <EstadoBadgeAuto estado={auto.estado} />}
               <PrioridadBadge prioridad={auto.prioridad} />
+              {duracion !== null && (
+                <span style={{ fontSize:11, fontWeight:700, color:'#888', background:'#f0f0f0', padding:'2px 8px', borderRadius:8, whiteSpace:'nowrap' }}>
+                  🗓 {duracion} día{duracion !== 1 ? 's' : ''} lab.
+                </span>
+              )}
             </div>
             <div className="hist-meta">
               {auto.area && <span>{auto.area} · </span>}
               Solicitado por {auto.solicitante_nombre} · {fmtDate(auto.created_at)}
-              {asignado && <span> · Asignado: {firstName(asignado.name)}</span>}
+              {asignado && <span> · {firstName(asignado.name)}{asignado2 ? ` / ${firstName(asignado2.name)}` : ''}</span>}
               {auto.fecha_fin && <span> · Entrega: {fmtDate(auto.fecha_fin)}</span>}
             </div>
+            {auto.avance > 0 && auto.estado !== 'rechazada' && (
+              <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:8 }}>
+                <div style={{ flex:1, maxWidth:200, height:6, background:'#e0e0e0', borderRadius:3, overflow:'hidden' }}>
+                  <div style={{ width:`${auto.avance}%`, height:'100%', background: auto.avance >= 100 ? '#2C8B5D' : auto.avance >= 50 ? '#C98A2B' : '#D64545', borderRadius:3, transition:'width 0.3s' }} />
+                </div>
+                <span style={{ fontSize:11, fontWeight:700, color:'#555' }}>{auto.avance}%</span>
+              </div>
+            )}
             {/* Calificación en finalizadas */}
             {auto.estado === 'finalizada' && (
               <div style={{ marginTop:6 }}>
@@ -2272,7 +2309,7 @@ function ModalAutomatizacion({ modal, onClose, auto, empleados, segAuto, autoLog
               ))}
               <div style={{ display:'flex', gap:20, flexWrap:'wrap', fontSize:13, color:'#777', alignItems:'center' }}>
                 <span>Solicitado por: <strong>{auto?.solicitante_nombre}</strong></span>
-                {asignado && <span>Asignado a: <strong>{asignado.name}</strong></span>}
+                {asignado && <span>Asignado a: <strong>{asignado.name}{auto?.asignado_id_2 ? ` / ${empleados.find(e => e.id === auto.asignado_id_2)?.name || ''}` : ''}</strong></span>}
                 {isDarwin ? (
                   <>
                     <div style={{ display:'flex', alignItems:'center', gap:6 }}>
@@ -2299,11 +2336,26 @@ function ModalAutomatizacion({ modal, onClose, auto, empleados, segAuto, autoLog
                         }}
                       />
                     </div>
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <span>Avance:</span>
+                      <input type="number" min="0" max="100" className="form-input" style={{ padding:'3px 8px', fontSize:12, width:70 }}
+                        value={form.avance ?? auto?.avance ?? 0}
+                        onChange={e => f('avance', parseInt(e.target.value) || 0)}
+                        onBlur={async e => {
+                          const val = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+                          if (val !== (auto?.avance || 0)) {
+                            await onGuardar({ ...auto, avance: val });
+                          }
+                        }}
+                      />
+                      <span style={{ fontSize:12 }}>%</span>
+                    </div>
                   </>
                 ) : (
                   <>
                     {auto?.fecha_inicio && <span>Inicio: <strong>{fmtDate(auto.fecha_inicio)}</strong></span>}
                     {auto?.fecha_fin && <span>Entrega: <strong>{fmtDate(auto.fecha_fin)}</strong></span>}
+                    {auto?.avance > 0 && <span>Avance: <strong>{auto.avance}%</strong></span>}
                   </>
                 )}
               </div>
@@ -2817,6 +2869,7 @@ export default function App() {
     if (prev) {
       if (form.fecha_inicio !== prev.fecha_inicio) changes.push(logAuto(form.id || autoSelected?.id, 'fecha_inicio', fmtDate(prev.fecha_inicio), fmtDate(form.fecha_inicio)));
       if (form.fecha_fin !== prev.fecha_fin) changes.push(logAuto(form.id || autoSelected?.id, 'fecha_fin', fmtDate(prev.fecha_fin), fmtDate(form.fecha_fin)));
+      if (form.avance !== undefined && form.avance !== prev.avance) changes.push(logAuto(form.id || autoSelected?.id, 'avance', `${prev.avance || 0}%`, `${form.avance}%`));
     }
     const { error } = await supabase.from('automatizaciones').update({ ...form, updated_at: new Date().toISOString() }).eq('id', form.id || autoSelected?.id);
     if (error) return alert('Error al guardar: ' + error.message);
