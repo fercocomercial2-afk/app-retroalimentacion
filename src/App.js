@@ -943,43 +943,12 @@ function MisTareasScreen({ user, allEmployees, allOpportunities, followups, task
   const closedOpps = [...catOpps.filter(o => o.status === 'logrado')].sort((a,b) => new Date(b.closed_at||b.created_at||0) - new Date(a.closed_at||a.created_at||0));
   const filteredOpps = statusTab === 'proceso' ? activeOpps : closedOpps;
 
-  // Si no hay selección de categoría, mostrar cuadros
-  if (!selectedCategoryId && workerCategories.length > 1) {
-    return (
-      <div>
-        <div className="page-header">
-          <h1 className="page-title">Mis Tareas</h1>
-          <p className="page-subtitle">Selecciona la categoría que deseas revisar</p>
-        </div>
-        <div className="worker-category-grid">
-          {workerCategories.map(cat => {
-            const catMisOpps = misOpps.filter(o => o.category_id === cat.id);
-            const activeCount = catMisOpps.filter(o => o.status === 'proceso').length;
-            const closedCount = catMisOpps.filter(o => o.status === 'logrado').length;
-            return (
-              <button key={cat.id} className="worker-category-card" onClick={() => setSelectedCategoryId(cat.id)}>
-                <span className="worker-category-icon" style={{ background:`${cat.color}20`, color:cat.color }}>{catIcons[cat.name] || '📋'}</span>
-                <span className="worker-category-name">{cat.name}</span>
-                <span className="worker-category-counts">{activeCount} en proceso · {closedCount} finalizada{closedCount !== 1 ? 's' : ''}</span>
-                <span className="worker-category-arrow">→</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
+  // Siempre entrar directo, sin cuadros
   return (
     <div>
-      <div className="page-header" style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-        <div>
-          <h1 className="page-title">Mis Tareas</h1>
-          <p className="page-subtitle">{selectedCategory?.name || 'Mis proyectos y oportunidades'}</p>
-        </div>
-        {workerCategories.length > 1 && (
-          <button className="btn-secondary" onClick={() => { setSelectedCategoryId(null); setStatusTab('proceso'); }}>← Categorías</button>
-        )}
+      <div className="page-header">
+        <h1 className="page-title">Mis Tareas</h1>
+        <p className="page-subtitle">Proyectos y oportunidades asignados a mí</p>
       </div>
 
       {/* Tabs categorías como selector rápido */}
