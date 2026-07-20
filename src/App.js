@@ -920,14 +920,10 @@ function MisTareasScreen({ user, allEmployees, allOpportunities, followups, task
     .map(name => categories.find(c => c.name?.trim().toLowerCase() === name.toLowerCase()))
     .filter(Boolean);
 
-  const catIcons = { 'Habilidades Blandas': '💬', 'Habilidades Duras': '🛠️', 'Proyectos': '📁' };
-
   const effectiveCatId = selectedCategoryId || workerCategories[0]?.id || null;
-  const selectedCategory = categories.find(c => c.id === effectiveCatId);
 
   // Ordenar: vencidos primero → por vencer próximo → sin fecha
   const sortByDue = (items) => {
-    const today = new Date(); today.setHours(0,0,0,0);
     return [...items].sort((a, b) => {
       const ad = a.due_date ? new Date(a.due_date) : null;
       const bd = b.due_date ? new Date(b.due_date) : null;
