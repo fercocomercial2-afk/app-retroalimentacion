@@ -35,6 +35,16 @@ const fmtDateRS = (d) => {
 };
 const fmtDateLong = (d) => d ? new Date(d).toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
 const COLORS = ['#1F6FB2', '#2C8B5D', '#8A5BB0', '#C98A2B', '#D64545', '#3A8F8F', '#7B61FF', '#E07C4F'];
+const WORKER_CATEGORY_NAMES = ['Habilidades Blandas', 'Habilidades Duras', 'Proyectos'];
+
+const sortOpportunitiesByDueDate = (items) => [...items].sort((a, b) => {
+  const aHasDue = Boolean(a.due_date);
+  const bHasDue = Boolean(b.due_date);
+  if (aHasDue && bHasDue) return new Date(a.due_date) - new Date(b.due_date);
+  if (aHasDue) return -1;
+  if (bHasDue) return 1;
+  return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+});
 
 /* ================================================================
    ESQUEMAS DE REGISTROS SANITARIOS
@@ -572,17 +582,24 @@ function OppProgressBar({ pct }) {
    ================================================================ */
 function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportunities, followups, categories, tasks, onOpenNueva, onOpenSeguimiento, onOpenLograr, onOpenEliminar, onOpenEditarOpp, onOpenNuevaTask, onOpenSeguimientoTask, onOpenLograrTask, onOpenEliminarTask, onOpenEditarTask, onOpenEditarFollowup, selectedWorkerId, setSelectedWorkerId, expandedOpps, toggleOpp, expandedTasks, toggleTask, isAdmin, adminView, setAdminView, onOpenDetalle }) {
   const [segFilter, setSegFilter] = useState('all');
-  const [catFilter, setCatFilter] = useState('all');
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [statusTab, setStatusTab] = useState('proceso'); // 'proceso' | 'finalizado'
 
   const emps = adminView === 'all' ? allEmployees : myReports;
   const opps = adminView === 'all' ? allOpportunities : opportunities;
+  const categoryCards = WORKER_CATEGORY_NAMES.map((name, index) => ({
+    name,
+    category: categories.find(c => c.name?.trim().toLowerCase() === name.toLowerCase()),
+    icon: ['💬', '🛠️', '📁'][index],
+  }));
+  const selectedCategory = categories.find(c => c.id === selectedCategoryId) || null;
+  const categoryOpps = selectedCategoryId ? opps.filter(o => o.category_id === selectedCategoryId) : [];
 
-  const activeOpps = opps.filter(o => o.status === 'proceso');
-  const closedOpps = opps.filter(o => o.status === 'logrado');
+  const activeOpps = sortOpportunitiesByDueDate(categoryOpps.filter(o => o.status === 'proceso'));
+  const closedOpps = [...categoryOpps.filter(o => o.status === 'logrado')].sort((a, b) => new Date(b.closed_at || b.updated_at || b.created_at || 0) - new Date(a.closed_at || a.updated_at || a.created_at || 0));
 
   const currentOpps = statusTab === 'proceso' ? activeOpps : closedOpps;
-  const filteredOpps = catFilter === 'all' ? currentOpps : currentOpps.filter(o => o.category_id === catFilter);
+  const filteredOpps = currentOpps;
 
   const filteredEmps = adminView === 'all' && segFilter !== 'all'
     ? emps.filter(e => {
@@ -595,10 +612,58 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
   const empOpps = selectedEmp ? filteredOpps.filter(o => o.employee_id === selectedEmp.id) : [];
   const selIdx = selectedEmp ? filteredEmps.findIndex(e => e.id === selectedEmp.id) : -1;
 
+  if (!selectedCategoryId) {
+    return (
+      <div>
+        <div className="page-header">
+          <h1 className="page-title">Mis Trabajadores</h1>
+          <p className="page-subtitle">Selecciona la categoría que deseas revisar</p>
+        </div>
+
+        <div className="worker-category-grid">
+          {categoryCards.map(({ name, category, icon }) => {
+            const categoryItems = category ? opps.filter(o => o.category_id === category.id && ['proceso', 'logrado'].includes(o.status)) : [];
+            const activeCount = categoryItems.filter(o => o.status === 'proceso').length;
+            const closedCount = categoryItems.filter(o => o.status === 'logrado').length;
+            return (
+              <button
+                key={name}
+                className="worker-category-card"
+                disabled={!category}
+                onClick={() => {
+                  if (!category) return;
+                  setSelectedCategoryId(category.id);
+                  setStatusTab('proceso');
+                  setSegFilter('all');
+                  setSelectedWorkerId(null);
+                }}
+              >
+                <span className="worker-category-icon" style={category ? { background: `${category.color}20`, color: category.color } : undefined}>{icon}</span>
+                <span className="worker-category-name">{name}</span>
+                {category ? (
+                  <span className="worker-category-counts">{activeCount} en proceso · {closedCount} finalizada{closedCount !== 1 ? 's' : ''}</span>
+                ) : (
+                  <span className="worker-category-counts">Categoría no configurada</span>
+                )}
+                <span className="worker-category-arrow">→</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div><h1 className="page-title">Mis Trabajadores</h1><p className="page-subtitle">{adminView === 'all' ? 'Vista general de todos los trabajadores' : 'Seguimientos'}</p></div>
+        <div>
+          <h1 className="page-title">Mis Trabajadores</h1>
+          <p className="page-subtitle">{selectedCategory?.name} · {adminView === 'all' ? 'Vista general de todos los trabajadores' : 'Seguimientos'}</p>
+        </div>
+        <button className="btn-secondary worker-category-back" onClick={() => { setSelectedCategoryId(null); setSelectedWorkerId(null); setStatusTab('proceso'); }}>
+          ← Categorías
+        </button>
       </div>
 
       {/* Tabs En Proceso / Finalizadas */}
@@ -613,13 +678,12 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
 
       <AdminViewToggle view={adminView} setView={setAdminView} isAdmin={isAdmin} />
 
-      {/* Filtro de categoría */}
-      {categories.length > 0 && (
+      {/* Selector de categoría dentro de la vista filtrada */}
+      {categoryCards.some(c => c.category) && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <span style={{ fontSize: 13, color: '#888' }}>Categoría:</span>
-          <select className="form-select" style={{ width: 'auto', padding: '6px 12px', fontSize: 13 }} value={catFilter} onChange={e => setCatFilter(e.target.value)}>
-            <option value="all">Todas las categorías</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          <select className="form-select" style={{ width: 'auto', padding: '6px 12px', fontSize: 13 }} value={selectedCategoryId} onChange={e => { setSelectedCategoryId(e.target.value); setSelectedWorkerId(null); setStatusTab('proceso'); }}>
+            {categoryCards.filter(c => c.category).map(({ category }) => <option key={category.id} value={category.id}>{category.name}</option>)}
           </select>
         </div>
       )}
@@ -670,14 +734,16 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                     </div>
                   </div>
                   {adminView !== 'all' && (
-                    <button className="btn-nueva" onClick={onOpenNueva}>
+                    <button className="btn-nueva" onClick={() => onOpenNueva(selectedCategoryId)}>
                       <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><line x1="9" y1="4" x2="9" y2="14"/><line x1="4" y1="9" x2="14" y2="9"/></svg>
                       Nueva oportunidad
                     </button>
                   )}
                 </div>
 
-                <div style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>{empOpps.length} oportunidad{empOpps.length !== 1 ? 'es' : ''} en proceso</div>
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>
+                  {empOpps.length} oportunidad{empOpps.length !== 1 ? 'es' : ''} {statusTab === 'proceso' ? 'en proceso' : 'finalizada'}{statusTab === 'finalizado' && empOpps.length !== 1 ? 's' : ''}
+                </div>
 
                 {empOpps.length === 0 ? (
                   <div className="empty-state">{statusTab === 'proceso' ? 'Sin oportunidades activas' : 'Sin oportunidades finalizadas'}</div>
@@ -755,6 +821,11 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
                           {opp.due_date && <span>Fecha límite: {fmtDate(opp.due_date)}</span>}
                           {lastFu && <span>Último seg. {fmtDate(lastFu.created_at)} · hace {lastFuDays} día{lastFuDays !== 1 ? 's' : ''}</span>}
                         </div>
+                        {opp.details && (
+                          <div className="opp-details">
+                            <strong>Descripción:</strong> <ExpandableText text={opp.details} limit={260} />
+                          </div>
+                        )}
                         <OppProgressBar pct={progressPct} />
                         {oppFollowups.length > 0 && (
                           <div className="followup-list">
@@ -961,6 +1032,11 @@ function MisTareasScreen({ user, allEmployees, allOpportunities, followups, task
 
                 {isExpanded && (
                   <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid #f0f0f0' }}>
+                    {opp.details && (
+                      <div className="opp-details" style={{ marginBottom: 10 }}>
+                        <strong>Descripción:</strong> <ExpandableText text={opp.details} limit={260} />
+                      </div>
+                    )}
                     {statusTab === 'finalizado' && opp.final_observation && (
                       <div style={{ background:'#e6f5ec', padding:'8px 12px', borderRadius:8, fontSize:13, color:'#15362C', marginBottom:10 }}>
                         <strong>Observación final:</strong> {opp.final_observation}
@@ -2676,12 +2752,14 @@ export default function App() {
   const [fLograrObs, setFLograrObs] = useState('');
   const [fCategory, setFCategory] = useState('');
   const [fTitle, setFTitle] = useState('');
+  const [fDetails, setFDetails] = useState('');
   const [fDue, setFDue] = useState('');
   const [fTaskTitle, setFTaskTitle] = useState('');
   const [fTaskDue, setFTaskDue] = useState('');
   const [fTaskObs, setFTaskObs] = useState('');
   const [fTaskRating, setFTaskRating] = useState(0);
   const [fEditTitle, setFEditTitle] = useState('');
+  const [fEditDetails, setFEditDetails] = useState('');
   const [fEditCategory, setFEditCategory] = useState('');
   const [fEditDue, setFEditDue] = useState('');
   const [formError, setFormError] = useState('');
@@ -2785,7 +2863,7 @@ export default function App() {
   const toggleOpp = (id) => setExpandedOpps(s => ({ ...s, [id]: !s[id] }));
   const toggleTask = (id) => setExpandedTasks(s => ({ ...s, [id]: !s[id] }));
 
-  const openNueva = () => { setModal('nueva'); setFEmpleado(''); setFCategory(''); setFTitle(''); setFDue(''); setFormError(''); };
+  const openNueva = (categoryId = '') => { setModal('nueva'); setFEmpleado(selectedWorkerId || ''); setFCategory(categoryId); setFTitle(''); setFDetails(''); setFDue(''); setFormError(''); };
   const openSeguimiento = (opp) => { setModal('seguimiento'); setActiveOpp(opp); setActiveTask(null); setFObs(''); setFObsRating(0); setFObsDue(''); setFormError(''); };
   const openSeguimientoTask = (opp, task) => { setModal('seguimientoTask'); setActiveOpp(opp); setActiveTask(task); setFObs(''); setFObsRating(0); setFObsDue(''); setFormError(''); };
   const openLograr = (opp) => { setModal('lograr'); setActiveOpp(opp); setActiveTask(null); setFLograrObs(''); setFormError(''); };
@@ -2794,7 +2872,7 @@ export default function App() {
   const openEliminar = (opp) => { setModal('eliminar'); setActiveOpp(opp); setActiveTask(null); };
   const openEliminarTask = (opp, task) => { setModal('eliminarTask'); setActiveOpp(opp); setActiveTask(task); };
   const openNuevaTask = (opp) => { setModal('nuevaTask'); setActiveOpp(opp); setFTaskTitle(''); setFTaskDue(''); setFormError(''); };
-  const openEditarOpp = (opp) => { setModal('editarOpp'); setEditTarget({ type: 'opp', item: opp }); setFEditTitle(opp.title || opp.description || ''); setFEditCategory(opp.category_id || ''); setFEditDue(toDatetimeLocal(opp.due_date)); setFormError(''); };
+  const openEditarOpp = (opp) => { setModal('editarOpp'); setEditTarget({ type: 'opp', item: opp }); setFEditTitle(opp.title || opp.description || ''); setFEditDetails(opp.details || ''); setFEditCategory(opp.category_id || ''); setFEditDue(toDatetimeLocal(opp.due_date)); setFormError(''); };
   const openEditarTask = (opp, task) => { setModal('editarTask'); setActiveOpp(opp); setEditTarget({ type: 'task', item: task }); setFEditTitle(task.title); setFEditDue(toDatetimeLocal(task.due_date)); setFormError(''); };
   const openEditarFollowup = (fu) => { setModal('editarFollowup'); setEditTarget({ type: 'followup', item: fu }); setFObs(fu.observation); setFObsRating(fu.rating || 0); setFObsDue(toDatetimeLocal(fu.due_date)); setFormError(''); };
 
@@ -3004,7 +3082,17 @@ export default function App() {
     const isProyecto = cat?.name === 'Proyectos';
     if (fTitle.trim().length < 3) return setFormError(`El nombre ${isProyecto ? 'del proyecto' : 'de la oportunidad'} debe tener al menos 3 caracteres.`);
     const mgr = employees.find(e => e.email === user?.email);
-    await supabase.from('opportunities').insert([{ employee_id: fEmpleado, manager_id: mgr?.id || null, description: fTitle.trim(), title: isProyecto ? fTitle.trim() : null, status: 'proceso', category_id: fCategory, due_date: fDue || null }]);
+    const { error } = await supabase.from('opportunities').insert([{
+      employee_id: fEmpleado,
+      manager_id: mgr?.id || null,
+      description: fTitle.trim(),
+      title: isProyecto ? fTitle.trim() : null,
+      details: fDetails.trim() || null,
+      status: 'proceso',
+      category_id: fCategory,
+      due_date: fDue || null,
+    }]);
+    if (error) return setFormError('Error al guardar: ' + error.message);
     setSelectedWorkerId(fEmpleado);
     closeModal(); setScreen('trabajadores'); loadOpportunities();
   };
@@ -3041,7 +3129,15 @@ export default function App() {
       const cat = categories.find(c => c.id === fEditCategory);
       const isProyecto = cat?.name === 'Proyectos';
       if (fEditTitle.trim().length < 3) return setFormError(`El nombre ${isProyecto ? 'del proyecto' : 'de la oportunidad'} debe tener al menos 3 caracteres.`);
-      await supabase.from('opportunities').update({ description: fEditTitle.trim(), title: isProyecto ? fEditTitle.trim() : null, category_id: fEditCategory, due_date: fEditDue || null, updated_at: new Date().toISOString() }).eq('id', editTarget.item.id);
+      const { error } = await supabase.from('opportunities').update({
+        description: fEditTitle.trim(),
+        title: isProyecto ? fEditTitle.trim() : null,
+        details: fEditDetails.trim() || null,
+        category_id: fEditCategory,
+        due_date: fEditDue || null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', editTarget.item.id);
+      if (error) return setFormError('Error al guardar: ' + error.message);
       await supabase.from('audit_log').insert([{ action: 'EDIT_OPP', employee_id: editTarget.item.employee_id, details: `Oportunidad editada: "${editTarget.item.description}" → "${fEditTitle.trim()}"` }]);
       loadOpportunities();
     } else if (editTarget.type === 'task') {
@@ -3194,6 +3290,9 @@ export default function App() {
           <div className="form-group"><label>{categories.find(c => c.id === fCategory)?.name === 'Proyectos' ? 'Nombre del proyecto' : 'Nombre de la oportunidad'}</label>
             <input className="form-input" placeholder={categories.find(c => c.id === fCategory)?.name === 'Proyectos' ? 'Ej: Rediseño del catálogo de productos' : 'Ej: Mejorar puntualidad en reuniones'} value={fTitle} onChange={e => setFTitle(e.target.value)} />
           </div>
+          <div className="form-group"><label>Descripción (opcional)</label>
+            <textarea className="form-textarea" placeholder="Agrega contexto, alcance o detalles importantes..." value={fDetails} onChange={e => setFDetails(e.target.value)} style={{ minHeight: 90 }} />
+          </div>
           <div className="form-group"><label>Fecha límite (opcional)</label>
             <input type="datetime-local" className="form-input" value={fDue} onChange={e => setFDue(e.target.value)} />
           </div>
@@ -3306,6 +3405,9 @@ export default function App() {
           </div>
           <div className="form-group"><label>{categories.find(c => c.id === fEditCategory)?.name === 'Proyectos' ? 'Nombre del proyecto' : 'Nombre de la oportunidad'}</label>
             <input className="form-input" value={fEditTitle} onChange={e => setFEditTitle(e.target.value)} />
+          </div>
+          <div className="form-group"><label>Descripción (opcional)</label>
+            <textarea className="form-textarea" placeholder="Agrega contexto, alcance o detalles importantes..." value={fEditDetails} onChange={e => setFEditDetails(e.target.value)} style={{ minHeight: 90 }} />
           </div>
           <div className="form-group"><label>Fecha límite (opcional)</label>
             <input type="datetime-local" className="form-input" value={fEditDue} onChange={e => setFEditDue(e.target.value)} />
@@ -3496,6 +3598,11 @@ export default function App() {
             <span>Cerrada: {fmtDate(activeOpp.closed_at)}</span><span>·</span>
             <span>{activeOpp.duration_days || 0} días</span>
           </div>
+          {activeOpp.details && (
+            <div className="opp-details" style={{ marginBottom: 16 }}>
+              <strong>Descripción:</strong> <ExpandableText text={activeOpp.details} limit={500} />
+            </div>
+          )}
           <div style={{ background: '#f0fff4', padding: 16, borderRadius: 10, marginBottom: 16, borderLeft: '4px solid #2C8B5D' }}>
             <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>Observación final</div>
             <div style={{ fontSize: 14, color: '#333', whiteSpace: 'pre-wrap' }}>{activeOpp.final_observation || 'Sin observación.'}</div>
