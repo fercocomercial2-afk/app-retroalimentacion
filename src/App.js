@@ -583,21 +583,19 @@ function OppProgressBar({ pct }) {
 function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportunities, followups, categories, tasks, onOpenNueva, onOpenSeguimiento, onOpenLograr, onOpenEliminar, onOpenEditarOpp, onOpenNuevaTask, onOpenSeguimientoTask, onOpenLograrTask, onOpenEliminarTask, onOpenEditarTask, onOpenEditarFollowup, selectedWorkerId, setSelectedWorkerId, expandedOpps, toggleOpp, expandedTasks, toggleTask, isAdmin, adminView, setAdminView, onOpenDetalle }) {
   const [segFilter, setSegFilter] = useState('all');
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
-  const [statusTab, setStatusTab] = useState('proceso'); // 'proceso' | 'finalizado'
+  const [statusTab, setStatusTab] = useState('proceso');
 
   const emps = adminView === 'all' ? allEmployees : myReports;
   const opps = adminView === 'all' ? allOpportunities : opportunities;
-  const categoryCards = WORKER_CATEGORY_NAMES.map((name, index) => ({
-    name,
-    category: categories.find(c => c.name?.trim().toLowerCase() === name.toLowerCase()),
-    icon: ['💬', '🛠️', '📁'][index],
-  }));
-  const selectedCategory = categories.find(c => c.id === selectedCategoryId) || null;
-  const categoryOpps = selectedCategoryId ? opps.filter(o => o.category_id === selectedCategoryId) : [];
+  const workerCategories = WORKER_CATEGORY_NAMES.map(name => categories.find(c => c.name?.trim().toLowerCase() === name.toLowerCase())).filter(Boolean);
+
+  // Si no hay categoría seleccionada, usar la primera disponible
+  const effectiveCatId = selectedCategoryId || workerCategories[0]?.id || null;
+  const selectedCategory = categories.find(c => c.id === effectiveCatId) || null;
+  const categoryOpps = effectiveCatId ? opps.filter(o => o.category_id === effectiveCatId) : [];
 
   const activeOpps = sortOpportunitiesByDueDate(categoryOpps.filter(o => o.status === 'proceso'));
   const closedOpps = [...categoryOpps.filter(o => o.status === 'logrado')].sort((a, b) => new Date(b.closed_at || b.updated_at || b.created_at || 0) - new Date(a.closed_at || a.updated_at || a.created_at || 0));
-
   const currentOpps = statusTab === 'proceso' ? activeOpps : closedOpps;
   const filteredOpps = currentOpps;
 
@@ -612,48 +610,6 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
   const empOpps = selectedEmp ? filteredOpps.filter(o => o.employee_id === selectedEmp.id) : [];
   const selIdx = selectedEmp ? filteredEmps.findIndex(e => e.id === selectedEmp.id) : -1;
 
-  if (!selectedCategoryId) {
-    return (
-      <div>
-        <div className="page-header">
-          <h1 className="page-title">Mis Trabajadores</h1>
-          <p className="page-subtitle">Selecciona la categoría que deseas revisar</p>
-        </div>
-
-        <div className="worker-category-grid">
-          {categoryCards.map(({ name, category, icon }) => {
-            const categoryItems = category ? opps.filter(o => o.category_id === category.id && ['proceso', 'logrado'].includes(o.status)) : [];
-            const activeCount = categoryItems.filter(o => o.status === 'proceso').length;
-            const closedCount = categoryItems.filter(o => o.status === 'logrado').length;
-            return (
-              <button
-                key={name}
-                className="worker-category-card"
-                disabled={!category}
-                onClick={() => {
-                  if (!category) return;
-                  setSelectedCategoryId(category.id);
-                  setStatusTab('proceso');
-                  setSegFilter('all');
-                  setSelectedWorkerId(null);
-                }}
-              >
-                <span className="worker-category-icon" style={category ? { background: `${category.color}20`, color: category.color } : undefined}>{icon}</span>
-                <span className="worker-category-name">{name}</span>
-                {category ? (
-                  <span className="worker-category-counts">{activeCount} en proceso · {closedCount} finalizada{closedCount !== 1 ? 's' : ''}</span>
-                ) : (
-                  <span className="worker-category-counts">Categoría no configurada</span>
-                )}
-                <span className="worker-category-arrow">→</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -661,10 +617,22 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
           <h1 className="page-title">Mis Trabajadores</h1>
           <p className="page-subtitle">{selectedCategory?.name} · {adminView === 'all' ? 'Vista general de todos los trabajadores' : 'Seguimientos'}</p>
         </div>
-        <button className="btn-secondary worker-category-back" onClick={() => { setSelectedCategoryId(null); setSelectedWorkerId(null); setStatusTab('proceso'); }}>
-          ← Categorías
-        </button>
       </div>
+
+      {/* Selector de categoría como tabs */}
+      {workerCategories.length > 1 && (
+        <div className="tabs" style={{ marginBottom: 16 }}>
+          {workerCategories.map(cat => (
+            <button key={cat.id} className={`tab ${effectiveCatId === cat.id ? 'active' : ''}`}
+              onClick={() => { setSelectedCategoryId(cat.id); setSelectedWorkerId(null); setStatusTab('proceso'); }}>
+              {cat.name}
+              <span style={{ marginLeft:4, background: effectiveCatId === cat.id ? 'rgba(255,255,255,0.3)' : '#e0e0e0', borderRadius:10, padding:'1px 7px', fontSize:11, fontWeight:700 }}>
+                {opps.filter(o => o.category_id === cat.id && o.status === 'proceso').length}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Tabs En Proceso / Finalizadas */}
       <div className="tabs" style={{ marginBottom: 16 }}>
@@ -677,16 +645,6 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
       </div>
 
       <AdminViewToggle view={adminView} setView={setAdminView} isAdmin={isAdmin} />
-
-      {/* Selector de categoría dentro de la vista filtrada */}
-      {categoryCards.some(c => c.category) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <span style={{ fontSize: 13, color: '#888' }}>Categoría:</span>
-          <select className="form-select" style={{ width: 'auto', padding: '6px 12px', fontSize: 13 }} value={selectedCategoryId} onChange={e => { setSelectedCategoryId(e.target.value); setSelectedWorkerId(null); setStatusTab('proceso'); }}>
-            {categoryCards.filter(c => c.category).map(({ category }) => <option key={category.id} value={category.id}>{category.name}</option>)}
-          </select>
-        </div>
-      )}
 
       {/* Filtro de seguimiento (solo vista "todos") */}
       {adminView === 'all' && (
@@ -952,23 +910,92 @@ function TrabajadoresScreen({ myReports, allEmployees, opportunities, allOpportu
    ================================================================ */
 function MisTareasScreen({ user, allEmployees, allOpportunities, followups, tasks, categories, expandedOpps, toggleOpp, expandedTasks, toggleTask, onOpenEditarFollowup }) {
   const [statusTab, setStatusTab] = useState('proceso');
-  const [catFilter, setCatFilter] = useState('all');
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
 
   const me = allEmployees.find(e => e.email === user?.email);
-
-  // Todas las oportunidades donde soy el colaborador asignado
   const misOpps = me ? allOpportunities.filter(o => o.employee_id === me.id) : [];
-  const activeOpps = misOpps.filter(o => o.status === 'proceso');
-  const closedOpps = misOpps.filter(o => o.status === 'logrado');
-  const currentOpps = statusTab === 'proceso' ? activeOpps : closedOpps;
-  const filteredOpps = catFilter === 'all' ? currentOpps : currentOpps.filter(o => o.category_id === catFilter);
+
+  // Categorías relevantes (solo las que tienen oportunidades mías)
+  const workerCategories = WORKER_CATEGORY_NAMES
+    .map(name => categories.find(c => c.name?.trim().toLowerCase() === name.toLowerCase()))
+    .filter(Boolean);
+
+  const catIcons = { 'Habilidades Blandas': '💬', 'Habilidades Duras': '🛠️', 'Proyectos': '📁' };
+
+  const effectiveCatId = selectedCategoryId || workerCategories[0]?.id || null;
+  const selectedCategory = categories.find(c => c.id === effectiveCatId);
+
+  // Ordenar: vencidos primero → por vencer próximo → sin fecha
+  const sortByDue = (items) => {
+    const today = new Date(); today.setHours(0,0,0,0);
+    return [...items].sort((a, b) => {
+      const ad = a.due_date ? new Date(a.due_date) : null;
+      const bd = b.due_date ? new Date(b.due_date) : null;
+      if (ad && bd) return ad - bd;
+      if (ad) return -1;
+      if (bd) return 1;
+      return new Date(b.created_at||0) - new Date(a.created_at||0);
+    });
+  };
+
+  const catOpps = effectiveCatId ? misOpps.filter(o => o.category_id === effectiveCatId) : misOpps;
+  const activeOpps = sortByDue(catOpps.filter(o => o.status === 'proceso'));
+  const closedOpps = [...catOpps.filter(o => o.status === 'logrado')].sort((a,b) => new Date(b.closed_at||b.created_at||0) - new Date(a.closed_at||a.created_at||0));
+  const filteredOpps = statusTab === 'proceso' ? activeOpps : closedOpps;
+
+  // Si no hay selección de categoría, mostrar cuadros
+  if (!selectedCategoryId && workerCategories.length > 1) {
+    return (
+      <div>
+        <div className="page-header">
+          <h1 className="page-title">Mis Tareas</h1>
+          <p className="page-subtitle">Selecciona la categoría que deseas revisar</p>
+        </div>
+        <div className="worker-category-grid">
+          {workerCategories.map(cat => {
+            const catMisOpps = misOpps.filter(o => o.category_id === cat.id);
+            const activeCount = catMisOpps.filter(o => o.status === 'proceso').length;
+            const closedCount = catMisOpps.filter(o => o.status === 'logrado').length;
+            return (
+              <button key={cat.id} className="worker-category-card" onClick={() => setSelectedCategoryId(cat.id)}>
+                <span className="worker-category-icon" style={{ background:`${cat.color}20`, color:cat.color }}>{catIcons[cat.name] || '📋'}</span>
+                <span className="worker-category-name">{cat.name}</span>
+                <span className="worker-category-counts">{activeCount} en proceso · {closedCount} finalizada{closedCount !== 1 ? 's' : ''}</span>
+                <span className="worker-category-arrow">→</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
-      <div className="page-header">
-        <h1 className="page-title">Mis Tareas</h1>
-        <p className="page-subtitle">Proyectos y oportunidades asignados a mí</p>
+      <div className="page-header" style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+        <div>
+          <h1 className="page-title">Mis Tareas</h1>
+          <p className="page-subtitle">{selectedCategory?.name || 'Mis proyectos y oportunidades'}</p>
+        </div>
+        {workerCategories.length > 1 && (
+          <button className="btn-secondary" onClick={() => { setSelectedCategoryId(null); setStatusTab('proceso'); }}>← Categorías</button>
+        )}
       </div>
+
+      {/* Tabs categorías como selector rápido */}
+      {workerCategories.length > 1 && (
+        <div className="tabs" style={{ marginBottom: 16 }}>
+          {workerCategories.map(cat => (
+            <button key={cat.id} className={`tab ${effectiveCatId === cat.id ? 'active' : ''}`}
+              onClick={() => { setSelectedCategoryId(cat.id); setStatusTab('proceso'); }}>
+              {cat.name}
+              <span style={{ marginLeft:4, background: effectiveCatId === cat.id ? 'rgba(255,255,255,0.3)' : '#e0e0e0', borderRadius:10, padding:'1px 7px', fontSize:11, fontWeight:700 }}>
+                {misOpps.filter(o => o.category_id === cat.id && o.status === 'proceso').length}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="tabs" style={{ marginBottom: 16 }}>
         <button className={`tab ${statusTab === 'proceso' ? 'active' : ''}`} onClick={() => setStatusTab('proceso')}>
@@ -979,20 +1006,10 @@ function MisTareasScreen({ user, allEmployees, allOpportunities, followups, task
         </button>
       </div>
 
-      {categories.length > 0 && (
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
-          <span style={{ fontSize:13, color:'#888' }}>Categoría:</span>
-          <select className="form-select" style={{ width:'auto', padding:'6px 12px', fontSize:13 }} value={catFilter} onChange={e => setCatFilter(e.target.value)}>
-            <option value="all">Todas</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-      )}
-
       <div style={{ fontSize:13, color:'#888', marginBottom:16 }}>{filteredOpps.length} {statusTab === 'proceso' ? 'en proceso' : 'finalizada'}{filteredOpps.length !== 1 ? 's' : ''}</div>
 
       {filteredOpps.length === 0 ? (
-        <div className="empty-state">{me ? `No tienes ${statusTab === 'proceso' ? 'proyectos en proceso' : 'proyectos finalizados'}.` : 'No se encontró tu perfil de empleado.'}</div>
+        <div className="empty-state">{me ? `No tienes ${statusTab === 'proceso' ? 'tareas en proceso' : 'tareas finalizadas'} en esta categoría.` : 'No se encontró tu perfil de empleado.'}</div>
       ) : (
         <div className="hist-list">
           {filteredOpps.map(opp => {
@@ -1004,6 +1021,10 @@ function MisTareasScreen({ user, allEmployees, allOpportunities, followups, task
             const isExpanded = expandedOpps[opp.id];
             const today0 = new Date(); today0.setHours(0,0,0,0);
             const progressPct = oppProgress(opp, isProyecto, oppTasks, oppFollowups);
+            const due = opp.due_date ? new Date(opp.due_date) : null;
+            if (due) due.setHours(0,0,0,0);
+            const diffDays = due ? Math.round((due - today0) / 86400000) : null;
+            const dueColor = diffDays === null ? null : diffDays < 0 ? '#D64545' : diffDays <= 3 ? '#C98A2B' : '#2C8B5D';
 
             return (
               <div key={opp.id} className="hist-card" style={{ cursor:'default' }}>
@@ -1012,12 +1033,11 @@ function MisTareasScreen({ user, allEmployees, allOpportunities, followups, task
                     <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
                       {cat && <span className="cat-badge" style={{ background:cat.color+'20', color:cat.color, borderLeft:`3px solid ${cat.color}` }}>{cat.name}</span>}
                       <span className="hist-desc" style={{ margin:0 }}>{opp.title || opp.description}</span>
-                      {opp.due_date && (() => {
-                        const due = new Date(opp.due_date); due.setHours(0,0,0,0);
-                        const diff = Math.round((due - today0) / 86400000);
-                        const color = diff < 0 ? '#D64545' : diff <= 3 ? '#C98A2B' : '#2C8B5D';
-                        return <span style={{ fontSize:11, fontWeight:700, color, background:color+'18', padding:'2px 7px', borderRadius:8 }}>📅 {fmtDate(opp.due_date)}</span>;
-                      })()}
+                      {dueColor && (
+                        <span style={{ fontSize:11, fontWeight:700, color:dueColor, background:dueColor+'18', padding:'2px 7px', borderRadius:8, whiteSpace:'nowrap' }}>
+                          {diffDays < 0 ? '⚠️ Vencida' : diffDays === 0 ? '🔴 Vence hoy' : `📅 ${fmtDate(opp.due_date)}`}
+                        </span>
+                      )}
                     </div>
                     <div className="hist-meta">
                       Creada {fmtDate(opp.created_at)}
@@ -1033,7 +1053,7 @@ function MisTareasScreen({ user, allEmployees, allOpportunities, followups, task
                 {isExpanded && (
                   <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid #f0f0f0' }}>
                     {opp.details && (
-                      <div className="opp-details" style={{ marginBottom: 10 }}>
+                      <div className="opp-details" style={{ marginBottom:10 }}>
                         <strong>Descripción:</strong> <ExpandableText text={opp.details} limit={260} />
                       </div>
                     )}
