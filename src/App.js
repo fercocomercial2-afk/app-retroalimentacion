@@ -1885,7 +1885,7 @@ function CumpleanosScreen({ allEmployees }) {
       };
 
       const geminiKey = process.env.REACT_APP_GEMINI_KEY;
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${geminiKey}`;
       console.log('Llamando Gemini...', url.replace(geminiKey, 'KEY'));
 
       const res = await fetch(url, {
