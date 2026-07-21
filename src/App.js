@@ -1874,19 +1874,20 @@ function CumpleanosScreen({ allEmployees }) {
 - Texto "¡Que tengas un GRAN DIA!" en la parte inferior
 - Estilo corporativo moderno y festivo${fotoBase64 ? '\n- Usar la imagen adjunta para la persona dentro del marco polaroid' : ''}`;
 
-      const parts = [{ text: prompt }];
+      const parts = [{ type: 'text', text: prompt }];
       if (fotoBase64) {
-        parts.push({ inline_data: { mime_type: fotoMime, data: fotoBase64 } });
+        parts.push({ type: 'image', mime_type: fotoMime, data: fotoBase64 });
       }
 
       const body = {
-        contents: [{ parts }],
-        generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+        model: 'gemini-2.5-flash-image',
+        input: parts,
+        response_format: { type: 'image', aspect_ratio: '1:1' }
       };
 
       const geminiKey = process.env.REACT_APP_GEMINI_KEY;
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
-      console.log('Llamando Gemini...', url.replace(geminiKey, 'KEY'));
+      const url = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${geminiKey}`;
+      console.log('Llamando Gemini Interactions API...');
 
       const res = await fetch(url, {
         method: 'POST',
@@ -1899,12 +1900,33 @@ function CumpleanosScreen({ allEmployees }) {
 
       if (data.error) throw new Error(`Gemini error: ${data.error.message}`);
 
-      const imgPart = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData?.mimeType?.startsWith('image/'));
-      if (imgPart) {
-        setTarjetaUrl(`data:${imgPart.inlineData.mimeType};base64,${imgPart.inlineData.data}`);
+      // Buscar imagen en steps -> model_output -> content
+      let imgData = null;
+      let imgMime = 'image/png';
+      if (data.steps) {
+        for (const step of data.steps) {
+          if (step.type === 'model_output' && step.content) {
+            for (const block of step.content) {
+              if (block.type === 'image' && block.data) {
+                imgData = block.data;
+                imgMime = block.mime_type || 'image/png';
+                break;
+              }
+            }
+          }
+          if (imgData) break;
+        }
+      }
+      // Fallback: output_image
+      if (!imgData && data.output_image?.data) {
+        imgData = data.output_image.data;
+        imgMime = data.output_image.mime_type || 'image/png';
+      }
+
+      if (imgData) {
+        setTarjetaUrl(`data:${imgMime};base64,${imgData}`);
       } else {
-        const textPart = data?.candidates?.[0]?.content?.parts?.find(p => p.text);
-        throw new Error(textPart?.text || 'Gemini no devolvió imagen. Revisa la consola para más detalles.');
+        throw new Error('Gemini no devolvió imagen. Revisa la consola.');
       }
     } catch(err) {
       console.error('Error generarTarjeta:', err);
