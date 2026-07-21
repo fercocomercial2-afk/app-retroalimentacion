@@ -1819,14 +1819,24 @@ function CumpleanosScreen({ allEmployees }) {
   const mesAnterior = () => { if (mes === 0) { setMes(11); setAnio(a => a-1); } else setMes(m => m-1); setDiaSeleccionado(null); setTarjetaUrl(null); };
   const mesSiguiente = () => { if (mes === 11) { setMes(0); setAnio(a => a+1); } else setMes(m => m+1); setDiaSeleccionado(null); setTarjetaUrl(null); };
 
+  const EMO = {
+    party: '\uD83E\uDD73',   // 🥳
+    confetti: '\uD83C\uDF89', // 🎉
+    blue: '\uD83D\uDC99',    // 💙
+    tada: '\uD83C\uDF8A',    // 🎊
+    cake: '\uD83C\uDF82',    // 🎂
+    balloon: '\uD83C\uDF88', // 🎈
+    star: '\uD83C\uDF1F',    // 🌟
+  };
+
   const mensajeWhatsApp = (emp) => {
     const noLaboral = esNoLaboral(diaSeleccionado, mes, anio);
     const nombre = emp.name.split(' ').slice(0,2).join(' ');
     const cargo = emp.position || 'Colaborador';
     if (noLaboral) {
-      return `¡Feliz cumpleaños adelantado, ${nombre} – ${cargo}! 🎉🥳\nEn FERCO MEDICAL deseamos que disfrute su día rodeada de alegría, bienestar y momentos inolvidables. 🌟\n¡Que este nuevo año de vida venga acompañado de éxitos, nuevas oportunidades y muchos motivos para sonreír! 💙🎉`;
+      return `\u00a1Feliz cumplea\u00f1os adelantado, ${nombre} \u2013 ${cargo}! ${EMO.confetti}${EMO.party}\nEn FERCO MEDICAL deseamos que disfrute su d\u00eda rodeada de alegr\u00eda, bienestar y momentos inolvidables. ${EMO.star}\n\u00a1Que este nuevo a\u00f1o de vida venga acompa\u00f1ado de \u00e9xitos, nuevas oportunidades y muchos motivos para sonre\u00edr! ${EMO.blue}${EMO.confetti}`;
     }
-    return `¡Feliz cumpleaños, ${nombre} - ${cargo}! 🥳🎉\nDe parte de todo el equipo de FERCO MEDICAL, deseamos que disfrutes de una jornada increíble. Que la prosperidad y la salud te rodeen siempre, y que sigas cosechando grandes triunfos en tu camino. 💙\n¡Que sigan los éxitos y la alegría! 🎊`;
+    return `\u00a1Feliz cumplea\u00f1os, ${nombre} - ${cargo}! ${EMO.party}${EMO.confetti}\nDe parte de todo el equipo de FERCO MEDICAL, deseamos que disfrutes de una jornada incre\u00edble. Que la prosperidad y la salud te rodeen siempre, y que sigas cosechando grandes triunfos en tu camino. ${EMO.blue}\n\u00a1Que sigan los \u00e9xitos y la alegr\u00eda! ${EMO.tada}`;
   };
 
   const abrirWhatsApp = (emp) => {
@@ -1874,7 +1884,7 @@ ${fotoBase64 ? 'Usa la foto adjunta para la persona en el marco polaroid.' : ''}
 
       const geminiKey = process.env.REACT_APP_GEMINI_KEY;
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${geminiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${geminiKey}`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
       );
       const data = await res.json();
