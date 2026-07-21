@@ -1851,17 +1851,19 @@ function CumpleanosScreen({ allEmployees }) {
       const fechaStr = `${diaSeleccionado} de ${MESES[mes]}`;
       const fotoUrl = emp.picture_url || `https://bukwebapp-enterprise-peru.s3.amazonaws.com/ferco-medical/person/picture_url/${emp.buk_employee_id}/photo.png`;
 
-      // Convertir foto a base64 via proxy CORS
+      // Convertir foto a base64 - intentar URL directo sin proxy
       let fotoBase64 = null;
       let fotoMime = 'image/jpeg';
       try {
-        const r = await fetch(`https://corsproxy.io/?${encodeURIComponent(fotoUrl)}`);
+        const r = await fetch(fotoUrl, { mode: 'cors', credentials: 'omit' });
         if (r.ok) {
           const blob = await r.blob();
           fotoMime = blob.type || 'image/jpeg';
           fotoBase64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
         }
-      } catch(e) { console.warn('No se pudo cargar la foto:', e); }
+      } catch(e) { 
+        console.warn('No se pudo cargar la foto de Buk, continuando sin imagen:', e.message); 
+      }
 
       const prompt = `Crea una tarjeta de cumpleaños festiva para la empresa FERCO MEDICAL con estas características:
 - Fondo claro pastel con degradado suave (celeste y verde menta)
@@ -2133,7 +2135,7 @@ function ConfigScreen({ employees, categories, onEmployeesUpdated, onAssignments
       let nuevos = 0, actualizados = 0, errores = 0;
       for (const b of activeEmps) {
         const bossId = b.current_job?.boss?.id || null;
-        const bukPictureUrl = `https://bukwebapp-enterprise-peru.s3.amazonaws.com/ferco-medical/person/picture_url/${b.id}/photo.png`;
+        const bukPictureUrl = b.profile_picture_link || `https://bukwebapp-enterprise-peru.s3.amazonaws.com/ferco-medical/person/picture_url/${b.id}/photo.png`;
         const empData = { buk_employee_id: b.id, name: b.full_name || `Empleado ${b.id}`, email: b.email || null, position: b.current_job?.role?.name || null, department: b.current_job?.area?.name || null, manager_id: bossId, manager_name: bossId ? (bukMap.get(bossId) || null) : null, status_in_buk: 'active', synced_at: new Date().toISOString(), updated_at: new Date().toISOString(), birthday: b.birthday || null, picture_url: bukPictureUrl };
         if (!localSet.has(b.id)) {
           empData.is_active_in_feedback = true; empData.created_at = new Date().toISOString();
