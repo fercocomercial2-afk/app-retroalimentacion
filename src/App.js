@@ -1842,7 +1842,6 @@ function CumpleanosScreen({ allEmployees }) {
   const abrirWhatsApp = (emp) => {
     const msg = encodeURIComponent(mensajeWhatsApp(emp));
     window.open(`https://wa.me/?text=${msg}`, '_blank');
-    setTimeout(() => window.open('https://chat.whatsapp.com/CuxIwHXL7he2JbXCLX8B17', '_blank'), 500);
   };
 
   const generarTarjeta = async (emp) => {
@@ -1854,28 +1853,31 @@ function CumpleanosScreen({ allEmployees }) {
 
       // Convertir foto a base64 via proxy CORS
       let fotoBase64 = null;
+      let fotoMime = 'image/jpeg';
       try {
         const r = await fetch(`https://corsproxy.io/?${encodeURIComponent(fotoUrl)}`);
-        const blob = await r.blob();
-        fotoBase64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
+        if (r.ok) {
+          const blob = await r.blob();
+          fotoMime = blob.type || 'image/jpeg';
+          fotoBase64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
+        }
       } catch(e) { console.warn('No se pudo cargar la foto:', e); }
 
-      const prompt = `Genera una tarjeta de cumpleaños festiva para la empresa FERCO MEDICAL.
-La tarjeta debe tener exactamente este estilo:
-- Fondo claro pastel con degradado suave (celeste, verde menta, lavanda)
-- Bokeh circular difuminado en el fondo
-- Confetti y elementos festivos dispersos
-- Badge con fecha "${fechaStr}" en esquina superior izquierda: fondo verde (#5cbf5c), texto blanco, número grande y mes en letras pequeñas
+      const prompt = `Crea una tarjeta de cumpleaños festiva para la empresa FERCO MEDICAL con estas características:
+- Fondo claro pastel con degradado suave (celeste y verde menta)
+- Elementos festivos: bokeh circular difuminado, confetti y globos decorativos
+- Badge de fecha "${fechaStr}" en esquina superior izquierda: fondo verde, texto blanco en negrita
 - Logo FERCO MEDICAL en esquina superior derecha: cruz médica azul-verde con texto "FERCO MEDICAL" en azul oscuro
-- Texto "✨ FELIZ ✨" en azul oscuro bold uppercase con espaciado, debajo "Cumpleaños" en cursiva azul grande estilo script
-- Foto de la persona en marco tipo polaroid al centro, ligeramente inclinado, con borde blanco grueso y sombra
-- Nombre "${nombreCorto}" en cursiva azul oscuro grande debajo del marco
-- Texto "¡Que tengas un GRAN DÍA! 🎉" en la parte inferior en azul
-- Estilo profesional y festivo, similar a tarjetas corporativas modernas
-${fotoBase64 ? 'Usa la foto adjunta para la persona en el marco polaroid.' : ''}`;
+- Texto "FELIZ" en azul oscuro uppercase con espaciado, debajo "Cumpleaños" en cursiva azul estilo script grande
+- Marco tipo polaroid al centro con la foto de la persona, ligeramente inclinado con sombra
+- Nombre "${nombreCorto}" en cursiva azul oscuro debajo del marco
+- Texto "¡Que tengas un GRAN DIA!" en la parte inferior
+- Estilo corporativo moderno y festivo${fotoBase64 ? '\n- Usar la imagen adjunta para la persona dentro del marco polaroid' : ''}`;
 
       const parts = [{ text: prompt }];
-      if (fotoBase64) parts.push({ inline_data: { mime_type: 'image/jpeg', data: fotoBase64 } });
+      if (fotoBase64) {
+        parts.push({ inline_data: { mime_type: fotoMime, data: fotoBase64 } });
+      }
 
       const body = {
         contents: [{ parts }],
@@ -1883,19 +1885,29 @@ ${fotoBase64 ? 'Usa la foto adjunta para la persona en el marco polaroid.' : ''}
       };
 
       const geminiKey = process.env.REACT_APP_GEMINI_KEY;
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${geminiKey}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
-      );
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiKey}`;
+      console.log('Llamando Gemini...', url.replace(geminiKey, 'KEY'));
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
       const data = await res.json();
-      if (data.error) throw new Error(data.error.message);
+      console.log('Respuesta Gemini:', JSON.stringify(data).slice(0, 300));
+
+      if (data.error) throw new Error(`Gemini error: ${data.error.message}`);
+
       const imgPart = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData?.mimeType?.startsWith('image/'));
       if (imgPart) {
         setTarjetaUrl(`data:${imgPart.inlineData.mimeType};base64,${imgPart.inlineData.data}`);
       } else {
-        setErrorGen('Gemini no devolvió imagen. Intenta de nuevo.');
+        const textPart = data?.candidates?.[0]?.content?.parts?.find(p => p.text);
+        throw new Error(textPart?.text || 'Gemini no devolvió imagen. Revisa la consola para más detalles.');
       }
     } catch(err) {
+      console.error('Error generarTarjeta:', err);
       setErrorGen('Error: ' + err.message);
     }
     setGenerando(false); setEmpGenerando(null);
