@@ -279,6 +279,7 @@ function Sidebar({ user, screen, setScreen, isAdmin, onLogout, managerName, noti
     if (hasRegistrosAccess) items.push({ id: 'registros', icon: '🧪', label: 'Registros' });
     items.push({ id: 'automatizaciones', icon: '🔧', label: 'Mejora Continua' });
     items.push({ id: 'reconocimientos', icon: '🏆', label: 'Reconocimientos' });
+    if (isAdmin) items.push({ id: 'cumpleanos', icon: '🎂', label: 'Cumpleaños' });
     if (isAdmin) items.push({ id: 'config', icon: '⚙️', label: 'Configuración' });
   }
 
@@ -1757,6 +1758,301 @@ function RegistrosSanitariosScreen({ rsTab, setRsTab, rsDM, rsCosm, rsPF, rsDige
 }
 
 /* ================================================================
+   CUMPLEAÑOS (SOLO ADMIN)
+   ================================================================ */
+const FERIADOS_PERU = (year) => {
+  const a = year % 19, b = Math.floor(year/100), c = year % 100;
+  const d = Math.floor(b/4), e = b % 4, f = Math.floor((b+8)/25);
+  const g = Math.floor((b-f+1)/3), h = (19*a+b-d-g+15) % 30;
+  const i = Math.floor(c/4), k = c % 4, l = (32+2*e+2*i-h-k) % 7;
+  const m = Math.floor((a+11*h+22*l)/451);
+  const mes = Math.floor((h+l-7*m+114)/31);
+  const dia = ((h+l-7*m+114) % 31) + 1;
+  const pascua = new Date(year, mes-1, dia);
+  const juevesSanto = new Date(pascua); juevesSanto.setDate(pascua.getDate()-3);
+  const viernesSanto = new Date(pascua); viernesSanto.setDate(pascua.getDate()-2);
+  const toKey = (d) => `${d.getMonth()+1}-${d.getDate()}`;
+  return new Set(['1-1','5-1','6-29','7-28','7-29','8-30','10-8','11-1','12-8','12-25', toKey(juevesSanto), toKey(viernesSanto)]);
+};
+
+function CumpleanosScreen({ allEmployees }) {
+  const hoy = new Date();
+  const [mes, setMes] = useState(hoy.getMonth());
+  const [anio, setAnio] = useState(hoy.getFullYear());
+  const [diaSeleccionado, setDiaSeleccionado] = useState(null);
+  const [tarjetaUrl, setTarjetaUrl] = useState(null);
+  const [generando, setGenerando] = useState(false);
+  const [errorGen, setErrorGen] = useState(null);
+  const [empGenerando, setEmpGenerando] = useState(null);
+
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const feriados = FERIADOS_PERU(anio);
+
+  const esFinSemana = (d, m, a) => { const dow = new Date(a, m, d).getDay(); return dow === 0 || dow === 6; };
+  const esFeriado = (d, m) => feriados.has(`${m+1}-${d}`);
+  const esNoLaboral = (d, m, a) => esFinSemana(d, m, a) || esFeriado(d, m);
+
+  const diaLaboralAnterior = (d, m, a) => {
+    let fecha = new Date(a, m, d);
+    do { fecha.setDate(fecha.getDate()-1); } while (esNoLaboral(fecha.getDate(), fecha.getMonth(), fecha.getFullYear()));
+    return fecha;
+  };
+
+  // Empleados con cumpleaños en este mes
+  const cumpleMes = allEmployees.filter(e => {
+    if (!e.birthday) return false;
+    const parts = e.birthday.split('-');
+    return parseInt(parts[1])-1 === mes;
+  });
+
+  const porDia = {};
+  cumpleMes.forEach(e => {
+    const d = parseInt(e.birthday.split('-')[2]);
+    if (!porDia[d]) porDia[d] = [];
+    porDia[d].push(e);
+  });
+
+  const diasEnMes = new Date(anio, mes+1, 0).getDate();
+  const primerDia = new Date(anio, mes, 1).getDay();
+  const empSeleccionado = diaSeleccionado ? (porDia[diaSeleccionado] || []) : [];
+
+  const mesAnterior = () => { if (mes === 0) { setMes(11); setAnio(a => a-1); } else setMes(m => m-1); setDiaSeleccionado(null); setTarjetaUrl(null); };
+  const mesSiguiente = () => { if (mes === 11) { setMes(0); setAnio(a => a+1); } else setMes(m => m+1); setDiaSeleccionado(null); setTarjetaUrl(null); };
+
+  const mensajeWhatsApp = (emp) => {
+    const noLaboral = esNoLaboral(diaSeleccionado, mes, anio);
+    const nombre = emp.name.split(' ').slice(0,2).join(' ');
+    const cargo = emp.position || 'Colaborador';
+    if (noLaboral) {
+      return `¡Feliz cumpleaños adelantado, ${nombre} – ${cargo}! 🎉🥳\nEn FERCO MEDICAL deseamos que disfrute su día rodeada de alegría, bienestar y momentos inolvidables. 🌟\n¡Que este nuevo año de vida venga acompañado de éxitos, nuevas oportunidades y muchos motivos para sonreír! 💙🎉`;
+    }
+    return `¡Feliz cumpleaños, ${nombre} - ${cargo}! 🥳🎉\nDe parte de todo el equipo de FERCO MEDICAL, deseamos que disfrutes de una jornada increíble. Que la prosperidad y la salud te rodeen siempre, y que sigas cosechando grandes triunfos en tu camino. 💙\n¡Que sigan los éxitos y la alegría! 🎊`;
+  };
+
+  const abrirWhatsApp = (emp) => {
+    const msg = encodeURIComponent(mensajeWhatsApp(emp));
+    window.open(`https://wa.me/?text=${msg}`, '_blank');
+    setTimeout(() => window.open('https://chat.whatsapp.com/CuxIwHXL7he2JbXCLX8B17', '_blank'), 500);
+  };
+
+  const generarTarjeta = async (emp) => {
+    setGenerando(true); setErrorGen(null); setTarjetaUrl(null); setEmpGenerando(emp.id);
+    try {
+      const nombreCorto = emp.name.split(' ')[0];
+      const fechaStr = `${diaSeleccionado} de ${MESES[mes]}`;
+      const fotoUrl = emp.picture_url || `https://bukwebapp-enterprise-peru.s3.amazonaws.com/ferco-medical/person/picture_url/${emp.buk_employee_id}/photo.png`;
+
+      // Convertir foto a base64 via proxy CORS
+      let fotoBase64 = null;
+      try {
+        const r = await fetch(`https://corsproxy.io/?${encodeURIComponent(fotoUrl)}`);
+        const blob = await r.blob();
+        fotoBase64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
+      } catch(e) { console.warn('No se pudo cargar la foto:', e); }
+
+      const prompt = `Genera una tarjeta de cumpleaños festiva para la empresa FERCO MEDICAL.
+La tarjeta debe tener exactamente este estilo:
+- Fondo claro pastel con degradado suave (celeste, verde menta, lavanda)
+- Bokeh circular difuminado en el fondo
+- Confetti y elementos festivos dispersos
+- Badge con fecha "${fechaStr}" en esquina superior izquierda: fondo verde (#5cbf5c), texto blanco, número grande y mes en letras pequeñas
+- Logo FERCO MEDICAL en esquina superior derecha: cruz médica azul-verde con texto "FERCO MEDICAL" en azul oscuro
+- Texto "✨ FELIZ ✨" en azul oscuro bold uppercase con espaciado, debajo "Cumpleaños" en cursiva azul grande estilo script
+- Foto de la persona en marco tipo polaroid al centro, ligeramente inclinado, con borde blanco grueso y sombra
+- Nombre "${nombreCorto}" en cursiva azul oscuro grande debajo del marco
+- Texto "¡Que tengas un GRAN DÍA! 🎉" en la parte inferior en azul
+- Estilo profesional y festivo, similar a tarjetas corporativas modernas
+${fotoBase64 ? 'Usa la foto adjunta para la persona en el marco polaroid.' : ''}`;
+
+      const parts = [{ text: prompt }];
+      if (fotoBase64) parts.push({ inline_data: { mime_type: 'image/jpeg', data: fotoBase64 } });
+
+      const body = {
+        contents: [{ parts }],
+        generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+      };
+
+      const geminiKey = process.env.REACT_APP_GEMINI_KEY;
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${geminiKey}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+      );
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+      const imgPart = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData?.mimeType?.startsWith('image/'));
+      if (imgPart) {
+        setTarjetaUrl(`data:${imgPart.inlineData.mimeType};base64,${imgPart.inlineData.data}`);
+      } else {
+        setErrorGen('Gemini no devolvió imagen. Intenta de nuevo.');
+      }
+    } catch(err) {
+      setErrorGen('Error: ' + err.message);
+    }
+    setGenerando(false); setEmpGenerando(null);
+  };
+
+  return (
+    <div>
+      <div className="page-header">
+        <h1 className="page-title">🎂 Cumpleaños</h1>
+        <p className="page-subtitle">Calendario de cumpleaños del equipo · {cumpleMes.length} este mes</p>
+      </div>
+
+      {/* Navegación mes */}
+      <div style={{ display:'flex', alignItems:'center', gap:16, marginBottom:20 }}>
+        <button className="btn-secondary" onClick={mesAnterior} style={{ padding:'6px 16px', fontSize:16 }}>←</button>
+        <span style={{ fontSize:18, fontWeight:700, minWidth:180, textAlign:'center' }}>{MESES[mes]} {anio}</span>
+        <button className="btn-secondary" onClick={mesSiguiente} style={{ padding:'6px 16px', fontSize:16 }}>→</button>
+      </div>
+
+      {/* Calendario */}
+      <div style={{ background:'white', borderRadius:12, border:'1px solid #e0e0e0', padding:16, marginBottom:20 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4, marginBottom:8 }}>
+          {['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].map(d => (
+            <div key={d} style={{ textAlign:'center', fontSize:11, fontWeight:700, color:'#888', padding:'4px 0' }}>{d}</div>
+          ))}
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4 }}>
+          {Array.from({ length: primerDia }).map((_,i) => <div key={`e${i}`} />)}
+          {Array.from({ length: diasEnMes }).map((_,i) => {
+            const d = i+1;
+            const tieneEmps = !!porDia[d];
+            const noLab = esNoLaboral(d, mes, anio);
+            const selec = diaSeleccionado === d;
+            const esHoy = d === hoy.getDate() && mes === hoy.getMonth() && anio === hoy.getFullYear();
+            return (
+              <button key={d}
+                onClick={() => { setDiaSeleccionado(d === diaSeleccionado ? null : d); setTarjetaUrl(null); setErrorGen(null); }}
+                style={{
+                  border: selec ? '2px solid #1a7a4a' : esHoy ? '2px solid #0d5fa0' : '1px solid #e8e8e8',
+                  borderRadius:8, padding:'8px 4px', cursor:'pointer', minHeight:48,
+                  background: selec ? '#e8f5ec' : tieneEmps ? '#fff8e1' : noLab ? '#f8f8f8' : 'white',
+                  position:'relative', transition:'all 0.15s'
+                }}>
+                <div style={{ fontSize:13, fontWeight: tieneEmps ? 800 : 400, color: noLab ? '#bbb' : '#333' }}>{d}</div>
+                {tieneEmps && (
+                  <div style={{ display:'flex', justifyContent:'center', gap:2, marginTop:3 }}>
+                    {porDia[d].map((_, j) => (
+                      <div key={j} style={{ width:5, height:5, borderRadius:'50%', background:'#1a7a4a' }} />
+                    ))}
+                  </div>
+                )}
+                {tieneEmps && noLab && (
+                  <div style={{ position:'absolute', top:2, right:3, fontSize:8, color:'#e07a00', fontWeight:800 }}>AD</div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Lista cumpleañeros del mes */}
+      {cumpleMes.length > 0 && !diaSeleccionado && (
+        <div style={{ background:'white', borderRadius:12, border:'1px solid #e0e0e0', padding:16 }}>
+          <div style={{ fontWeight:700, fontSize:13, color:'#888', marginBottom:12, textTransform:'uppercase', letterSpacing:1 }}>Cumpleaños de {MESES[mes]}</div>
+          {Object.keys(porDia).sort((a,b) => parseInt(a)-parseInt(b)).map(dia => (
+            <div key={dia} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:'1px solid #f5f5f5', cursor:'pointer' }}
+              onClick={() => { setDiaSeleccionado(parseInt(dia)); setTarjetaUrl(null); setErrorGen(null); }}>
+              <div style={{ width:36, height:36, borderRadius:8, background:'#e8f5ec', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, fontSize:14, color:'#1a7a4a', flexShrink:0 }}>{dia}</div>
+              <div style={{ flex:1 }}>
+                {porDia[dia].map(emp => (
+                  <div key={emp.id} style={{ fontSize:13 }}>
+                    <span style={{ fontWeight:600 }}>{emp.name.split(' ').slice(0,2).join(' ')}</span>
+                    <span style={{ color:'#888', marginLeft:6 }}>{emp.position || ''}</span>
+                    {esNoLaboral(parseInt(dia), mes, anio) && <span style={{ marginLeft:6, fontSize:11, color:'#e07a00', fontWeight:700 }}>· Adelantado</span>}
+                  </div>
+                ))}
+              </div>
+              <span style={{ color:'#ccc', fontSize:18 }}>›</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {cumpleMes.length === 0 && (
+        <div className="empty-state">No hay cumpleaños en {MESES[mes]}. {allEmployees.filter(e => e.birthday).length === 0 ? 'Sincroniza con Buk para cargar los cumpleaños.' : ''}</div>
+      )}
+
+      {/* Panel día seleccionado */}
+      {diaSeleccionado && (
+        <div style={{ background:'white', border:'1px solid #e0e0e0', borderRadius:12, padding:20 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
+            <button className="btn-secondary" onClick={() => { setDiaSeleccionado(null); setTarjetaUrl(null); setErrorGen(null); }} style={{ padding:'4px 10px' }}>← Volver</button>
+            <span style={{ fontSize:20, fontWeight:900, color:'#1a7a4a' }}>{diaSeleccionado} de {MESES[mes]}</span>
+            {esNoLaboral(diaSeleccionado, mes, anio) && (
+              <span style={{ background:'#fff3cd', color:'#856404', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:6 }}>
+                {esFinSemana(diaSeleccionado, mes, anio) ? '📅 Fin de semana' : '📅 Feriado'} · Enviar mensaje adelantado
+              </span>
+            )}
+          </div>
+
+          {empSeleccionado.length === 0 ? (
+            <p style={{ color:'#888', fontSize:14 }}>No hay cumpleaños este día.</p>
+          ) : (
+            empSeleccionado.map(emp => {
+              const noLab = esNoLaboral(diaSeleccionado, mes, anio);
+              const dlaFecha = noLab ? diaLaboralAnterior(diaSeleccionado, mes, anio) : null;
+              return (
+                <div key={emp.id} style={{ paddingTop: empSeleccionado.indexOf(emp) > 0 ? 20 : 0, marginTop: empSeleccionado.indexOf(emp) > 0 ? 20 : 0, borderTop: empSeleccionado.indexOf(emp) > 0 ? '1px solid #f0f0f0' : 'none' }}>
+                  {/* Info empleado */}
+                  <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:14 }}>
+                    {emp.picture_url
+                      ? <img src={emp.picture_url} alt={emp.name} style={{ width:52, height:52, borderRadius:'50%', objectFit:'cover', border:'2px solid #e0e0e0' }} onError={e => e.target.style.display='none'} />
+                      : <div style={{ width:52, height:52, borderRadius:'50%', background:'#e8f5ec', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:18, color:'#1a7a4a' }}>{emp.name.split(' ').map(w=>w[0]).join('').slice(0,2)}</div>
+                    }
+                    <div>
+                      <div style={{ fontWeight:700, fontSize:16 }}>{emp.name}</div>
+                      <div style={{ fontSize:13, color:'#888' }}>{emp.position || 'Sin cargo'} {emp.department ? `· ${emp.department}` : ''}</div>
+                      {noLab && dlaFecha && (
+                        <div style={{ fontSize:12, color:'#e07a00', marginTop:3, fontWeight:600 }}>
+                          📨 Enviar el {dlaFecha.getDate()} de {MESES[dlaFecha.getMonth()]}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Preview mensaje */}
+                  <div style={{ background:'#f0fdf4', borderRadius:8, padding:12, fontSize:12, color:'#15362C', whiteSpace:'pre-line', marginBottom:14, borderLeft:'3px solid #25D366' }}>
+                    {mensajeWhatsApp(emp)}
+                  </div>
+
+                  {/* Botones */}
+                  <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginBottom:16 }}>
+                    <button className="btn-nueva" onClick={() => generarTarjeta(emp)} disabled={generando}
+                      style={{ fontSize:13, padding:'9px 18px', opacity: generando && empGenerando !== emp.id ? 0.6 : 1 }}>
+                      {generando && empGenerando === emp.id ? '⏳ Generando tarjeta...' : '🎨 Generar tarjeta con IA'}
+                    </button>
+                    <button onClick={() => abrirWhatsApp(emp)}
+                      style={{ background:'#25D366', color:'white', border:'none', borderRadius:8, padding:'9px 18px', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                      💬 Abrir WhatsApp
+                    </button>
+                  </div>
+
+                  {errorGen && empGenerando === emp.id && <div style={{ color:'#D64545', fontSize:13, marginBottom:12 }}>{errorGen}</div>}
+
+                  {/* Tarjeta generada */}
+                  {tarjetaUrl && empSeleccionado[0]?.id === emp.id && (
+                    <div style={{ textAlign:'center' }}>
+                      <img src={tarjetaUrl} alt="Tarjeta cumpleaños" style={{ maxWidth:'100%', maxHeight:420, borderRadius:12, boxShadow:'0 4px 24px rgba(0,0,0,0.12)' }} />
+                      <div style={{ marginTop:12 }}>
+                        <a href={tarjetaUrl} download={`cumpleanos-${emp.name.split(' ')[0]}.png`}
+                          style={{ background:'#1a7a4a', color:'white', padding:'9px 20px', borderRadius:8, textDecoration:'none', fontSize:13, fontWeight:700, display:'inline-block' }}>
+                          ⬇ Descargar tarjeta
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ================================================================
    CONFIGURACIÓN (SOLO ADMIN)
    ================================================================ */
 function ConfigScreen({ employees, categories, onEmployeesUpdated, onAssignmentsUpdated, onCategoriesUpdated }) {
@@ -1793,13 +2089,14 @@ function ConfigScreen({ employees, categories, onEmployeesUpdated, onAssignments
       let nuevos = 0, actualizados = 0, errores = 0;
       for (const b of activeEmps) {
         const bossId = b.current_job?.boss?.id || null;
-        const empData = { buk_employee_id: b.id, name: b.full_name || `Empleado ${b.id}`, email: b.email || null, position: b.current_job?.role?.name || null, department: b.current_job?.area?.name || null, manager_id: bossId, manager_name: bossId ? (bukMap.get(bossId) || null) : null, status_in_buk: 'active', synced_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+        const bukPictureUrl = `https://bukwebapp-enterprise-peru.s3.amazonaws.com/ferco-medical/person/picture_url/${b.id}/photo.png`;
+        const empData = { buk_employee_id: b.id, name: b.full_name || `Empleado ${b.id}`, email: b.email || null, position: b.current_job?.role?.name || null, department: b.current_job?.area?.name || null, manager_id: bossId, manager_name: bossId ? (bukMap.get(bossId) || null) : null, status_in_buk: 'active', synced_at: new Date().toISOString(), updated_at: new Date().toISOString(), birthday: b.birthday || null, picture_url: bukPictureUrl };
         if (!localSet.has(b.id)) {
           empData.is_active_in_feedback = true; empData.created_at = new Date().toISOString();
           const { error } = await supabase.from('employees').insert([empData]);
           if (error) { console.error('Insert error:', b.full_name, error.message); errores++; } else { nuevos++; }
         } else {
-          const { error } = await supabase.from('employees').update({ name: empData.name, email: empData.email, position: empData.position, department: empData.department, manager_id: empData.manager_id, manager_name: empData.manager_name, status_in_buk: empData.status_in_buk, synced_at: empData.synced_at, updated_at: empData.updated_at }).eq('buk_employee_id', b.id);
+          const { error } = await supabase.from('employees').update({ name: empData.name, email: empData.email, position: empData.position, department: empData.department, manager_id: empData.manager_id, manager_name: empData.manager_name, status_in_buk: empData.status_in_buk, synced_at: empData.synced_at, updated_at: empData.updated_at, birthday: empData.birthday, picture_url: empData.picture_url }).eq('buk_employee_id', b.id);
           if (error) { console.error('Update error:', b.full_name, error.message); errores++; } else { actualizados++; }
         }
       }
@@ -3251,6 +3548,7 @@ export default function App() {
         {screen === 'config' && isAdmin && <ConfigScreen employees={employees} categories={categories} onEmployeesUpdated={loadEmployees} onAssignmentsUpdated={loadAssignments} onCategoriesUpdated={loadCategories} />}
         {screen === 'config' && !isAdmin && <div className="error-msg">No tienes acceso a esta sección</div>}
         {screen === 'reconocimientos' && <ReconocimientosScreen recognitions={recognitions} employees={employees} opportunities={opportunities} categories={categories} />}
+        {screen === 'cumpleanos' && isAdmin && <CumpleanosScreen allEmployees={allEmployees} />}
         {screen === 'automatizaciones' && <AutomatizacionesScreen automatizaciones={automatizaciones} segAuto={segAuto} empleados={activeEmps} user={user} isDarwin={isDarwin} isRafael={isRafael} isAdmin={isAdmin} adminView={adminView} setAdminView={setAdminView} onOpenNueva={() => { setAutoSelected(null); setAutoModal('nueva'); }} onOpenVer={(a) => { setAutoSelected(a); setAutoModal('ver'); }} onOpenEditar={(a) => { setAutoSelected(a); setAutoModal('editar'); }} onAprobar={(a) => { setAutoSelected(a); setAutoModal('aprobar'); }} onRechazar={(a) => { setAutoSelected(a); setAutoModal('rechazar'); }} onFinalizar={(a) => { setAutoSelected(a); setAutoModal('finalizar'); }} onCalificar={(a) => { setAutoSelected(a); setAutoModal('ver'); }} />}
         <ModalAutomatizacion modal={autoModal} onClose={closeAutoModal} auto={autoSelected} empleados={activeEmps} segAuto={segAuto} autoLog={autoLog} user={user} isDarwin={isDarwin} isRafael={isRafael} onGuardar={autoModal === 'nueva' ? handleNuevaAuto : handleEditarAuto} onAprobar={handleAprobarAuto} onRechazar={handleRechazarAuto} onFinalizar={handleFinalizarAuto} onCalificar={handleCalificarAuto} onAddSeguimiento={handleAddSegAuto} />
       </main>
