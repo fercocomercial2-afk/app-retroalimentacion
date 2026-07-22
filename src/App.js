@@ -21,9 +21,20 @@ const fmtDate = (d) => {
 // Convierte un valor ISO a formato datetime-local (YYYY-MM-DDTHH:mm)
 const toDatetimeLocal = (d) => {
   if (!d) return '';
+  // Forzar interpretación en hora local (Lima, UTC-5)
   const date = new Date(typeof d === 'string' && d.length === 10 ? d + 'T00:00:00' : d);
   const pad = n => String(n).padStart(2,'0');
+  // Usar hora local del navegador directamente
   return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+// Convierte datetime-local a ISO string con offset Lima (UTC-5)
+// Evita que Supabase interprete la hora como UTC
+const localToISO = (datetimeLocal) => {
+  if (!datetimeLocal) return null;
+  // datetime-local es "YYYY-MM-DDTHH:mm", lo tratamos como hora Lima
+  // agregamos -05:00 para que Supabase lo guarde correctamente
+  return datetimeLocal + ':00-05:00';
 };
 const fmtDateRS = (d) => {
   if (!d) return '—';
@@ -3418,7 +3429,7 @@ export default function App() {
       details: fDetails.trim() || null,
       status: 'proceso',
       category_id: fCategory,
-      due_date: fDue || null,
+      due_date: localToISO(fDue),
     }]);
     if (error) return setFormError('Error al guardar: ' + error.message);
     setSelectedWorkerId(fEmpleado);
@@ -3427,17 +3438,17 @@ export default function App() {
   const guardarSeguimiento = async () => {
     if (fObs.trim().length < 5) return setFormError('La observación debe tener al menos 5 caracteres.');
     if (activeTask) {
-      await supabase.from('followups').insert([{ task_id: activeTask.id, observation: fObs.trim(), rating: fObsRating || null, due_date: fObsDue || null }]);
+      await supabase.from('followups').insert([{ task_id: activeTask.id, observation: fObs.trim(), rating: fObsRating || null, due_date: localToISO(fObsDue) }]);
       setExpandedTasks(s => ({ ...s, [activeTask.id]: true }));
     } else {
-      await supabase.from('followups').insert([{ opportunity_id: activeOpp.id, observation: fObs.trim(), rating: fObsRating || null, due_date: fObsDue || null }]);
+      await supabase.from('followups').insert([{ opportunity_id: activeOpp.id, observation: fObs.trim(), rating: fObsRating || null, due_date: localToISO(fObsDue) }]);
       setExpandedOpps(s => ({ ...s, [activeOpp.id]: true }));
     }
     closeModal(); loadFollowups();
   };
   const guardarNuevaTask = async () => {
     if (fTaskTitle.trim().length < 3) return setFormError('El nombre de la tarea debe tener al menos 3 caracteres.');
-    await supabase.from('tasks').insert([{ opportunity_id: activeOpp.id, title: fTaskTitle.trim(), due_date: fTaskDue || null, status: 'pendiente' }]);
+    await supabase.from('tasks').insert([{ opportunity_id: activeOpp.id, title: fTaskTitle.trim(), due_date: localToISO(fTaskDue), status: 'pendiente' }]);
     setExpandedOpps(s => ({ ...s, [activeOpp.id]: true }));
     closeModal(); loadTasks();
   };
@@ -3462,7 +3473,7 @@ export default function App() {
         title: isProyecto ? fEditTitle.trim() : null,
         details: fEditDetails.trim() || null,
         category_id: fEditCategory,
-        due_date: fEditDue || null,
+        due_date: localToISO(fEditDue),
         updated_at: new Date().toISOString(),
       }).eq('id', editTarget.item.id);
       if (error) return setFormError('Error al guardar: ' + error.message);
@@ -3470,12 +3481,12 @@ export default function App() {
       loadOpportunities();
     } else if (editTarget.type === 'task') {
       if (fEditTitle.trim().length < 3) return setFormError('El nombre debe tener al menos 3 caracteres.');
-      await supabase.from('tasks').update({ title: fEditTitle.trim(), due_date: fEditDue || null, updated_at: new Date().toISOString() }).eq('id', editTarget.item.id);
+      await supabase.from('tasks').update({ title: fEditTitle.trim(), due_date: localToISO(fEditDue), updated_at: new Date().toISOString() }).eq('id', editTarget.item.id);
       await supabase.from('audit_log').insert([{ action: 'EDIT_TASK', employee_id: activeOpp?.employee_id, details: `Tarea editada: "${editTarget.item.title}" → "${fEditTitle.trim()}"` }]);
       loadTasks();
     } else if (editTarget.type === 'followup') {
       if (fObs.trim().length < 5) return setFormError('La observación debe tener al menos 5 caracteres.');
-      await supabase.from('followups').update({ observation: fObs.trim(), rating: fObsRating || null, due_date: fObsDue || null }).eq('id', editTarget.item.id);
+      await supabase.from('followups').update({ observation: fObs.trim(), rating: fObsRating || null, due_date: localToISO(fObsDue) }).eq('id', editTarget.item.id);
       loadFollowups();
     }
     closeModal();
